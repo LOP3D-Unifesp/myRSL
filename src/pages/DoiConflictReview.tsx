@@ -295,7 +295,7 @@ const DoiConflictReview = () => {
             </div>
           </div>
           <div className="pt-4 flex gap-2">
-            {!state.started && <Button onClick={startReview}>Revisar</Button>}
+            {!state.started && <Button onClick={startReview}>Start Review</Button>}
             <Button variant="outline" asChild>
               <Link to="/">Back to Dashboard</Link>
             </Button>
@@ -341,10 +341,10 @@ const DoiConflictReview = () => {
           <CardContent className="space-y-4">
             <div className="rounded border p-3 text-sm space-y-1">
               <p><span className="font-medium">Study ID:</span> {currentItem.studyId || resolvedArticleInfo?.study_id || "-"}</p>
-              <p><span className="font-medium">DOI atual:</span> {currentItem.doiCurrent || resolvedArticleInfo?.doi || "-"}</p>
-              <p><span className="font-medium">DOI sugerido:</span> {currentItem.doiSuggested || currentItem.suggested.doi || "-"}</p>
-              <p><span className="font-medium">Titulo atual:</span> {currentItem.titleCurrent || resolvedArticleInfo?.title || "-"}</p>
-              <p className="text-xs text-muted-foreground">ID tecnico: {currentItem.articleId}</p>
+              <p><span className="font-medium">Current DOI:</span> {currentItem.doiCurrent || resolvedArticleInfo?.doi || "-"}</p>
+              <p><span className="font-medium">Suggested DOI:</span> {currentItem.doiSuggested || currentItem.suggested.doi || "-"}</p>
+              <p><span className="font-medium">Current Title:</span> {currentItem.titleCurrent || resolvedArticleInfo?.title || "-"}</p>
+              <p className="text-xs text-muted-foreground">Technical ID: {currentItem.articleId}</p>
               {loadingArticleInfo && <p className="text-xs text-muted-foreground">Loading article context...</p>}
             </div>
 
@@ -361,21 +361,21 @@ const DoiConflictReview = () => {
                       variant={decision.action === "keep" ? "default" : "outline"}
                       onClick={() => setDecisions((prev) => ({ ...prev, [conflict.field]: { ...decision, action: "keep" } }))}
                     >
-                      Manter
+                      Keep
                     </Button>
                     <Button
                       size="sm"
                       variant={decision.action === "replace" ? "default" : "outline"}
                       onClick={() => setDecisions((prev) => ({ ...prev, [conflict.field]: { ...decision, action: "replace" } }))}
                     >
-                      Substituir
+                      Replace
                     </Button>
                     <Button
                       size="sm"
                       variant={decision.action === "edit" ? "default" : "outline"}
                       onClick={() => setDecisions((prev) => ({ ...prev, [conflict.field]: { ...decision, action: "edit" } }))}
                     >
-                      Editar
+                      Edit
                     </Button>
                   </div>
                   {decision.action === "edit" && (
@@ -396,9 +396,9 @@ const DoiConflictReview = () => {
 
             <div className="flex gap-2">
               <Button onClick={handleSaveNext} disabled={saving || bulkApplying}>
-                {saving ? "Saving..." : "Salvar e proximo"}
+                {saving ? "Saving..." : "Save and Next"}
               </Button>
-              <Button variant="outline" onClick={clearAndExit}>Encerrar revisao</Button>
+              <Button variant="outline" onClick={clearAndExit}>End Review</Button>
             </div>
           </CardContent>
         </Card>

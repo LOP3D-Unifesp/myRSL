@@ -81,14 +81,14 @@ const Auth = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="********" required minLength={6} />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Loading…" : isLogin ? "Sign In" : "Sign Up"}
+                {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
               </Button>
             </form>
             <div className="mt-4 text-center">
-              <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-muted-foreground transition-colors hover:text-primary">
                 {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
               </button>
             </div>

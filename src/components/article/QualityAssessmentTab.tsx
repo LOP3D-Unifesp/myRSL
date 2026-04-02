@@ -42,7 +42,7 @@ const QualityAssessmentTab = ({ article, onUpdated }: Props) => {
     }
   };
 
-  const scoreColor = score >= 7 ? "text-green-600" : score >= 4 ? "text-yellow-600" : "text-red-600";
+  const scoreColor = score >= 7 ? "text-accent" : score >= 4 ? "text-warning" : "text-destructive";
 
   return (
     <div className="space-y-4">

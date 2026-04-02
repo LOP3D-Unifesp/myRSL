@@ -15,7 +15,6 @@ const ArticlesList = lazy(() => import("./pages/ArticlesList"));
 const ArticleForm = lazy(() => import("./pages/ArticleForm"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail"));
 const Analytics = lazy(() => import("./pages/Analytics"));
-const Verifications = lazy(() => import("./pages/Verifications"));
 const DoiConflictReview = lazy(() => import("./pages/DoiConflictReview"));
 const routerBase = import.meta.env.BASE_URL;
 
@@ -25,7 +24,7 @@ function ProtectedRoutes() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Loading…</div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
@@ -63,7 +62,7 @@ const App = () => (
               <Route path="/articles/new" element={<ArticleForm />} />
               <Route path="/articles/:id" element={<ArticleDetail />} />
               <Route path="/articles/:id/edit" element={<ArticleForm />} />
-              <Route path="/verifications" element={<Verifications />} />
+              <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/doi-sync/review" element={<DoiConflictReview />} />
             </Route>

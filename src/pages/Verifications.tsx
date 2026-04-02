@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchVerificationSummaries, type VerificationListItem } from "@/lib/articles";
+import { formatCompactAuthors } from "@/lib/article-authors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, ShieldCheck } from "lucide-react";
+import PageHeader from "@/components/layout/PageHeader";
+import PageState from "@/components/layout/PageState";
 
 const FILTERS = [
   { key: "verify_peer1" as const, label: "Peer 1" },
@@ -50,7 +53,7 @@ const Verifications = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState<Set<FilterKey>>(() => parseFilterParam(searchParams.get("filters")));
-  const { data: articles = [] } = useQuery({
+  const { data: articles = [], isLoading } = useQuery({
     queryKey: ["articles"],
     queryFn: fetchVerificationSummaries,
   });
@@ -91,78 +94,79 @@ const Verifications = () => {
   }, [articles, selected]);
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold font-serif text-foreground flex items-center gap-2">
-          <ShieldCheck className="h-6 w-6" /> Verifications Center
-        </h1>
-        <p className="text-sm text-muted-foreground">Filter articles by verification status</p>
-      </div>
+    <div className="page-container">
+      <PageHeader
+        title="Verifications Center"
+        subtitle="Filter and review articles by verification status."
+        titleIcon={<ShieldCheck className="h-6 w-6 text-primary" />}
+      />
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Filter by Verification</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-6">
             {FILTERS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 cursor-pointer">
+              <label key={key} className="flex cursor-pointer items-center gap-2">
                 <Checkbox
                   checked={selected.has(key)}
                   onCheckedChange={() => toggleFilter(key)}
+                  aria-label={`Filter by ${label}`}
                 />
                 <span className="text-sm font-medium">{label}</span>
               </label>
             ))}
           </div>
-          {selected.size > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
+          {selected.size > 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
               Showing articles verified by: {Array.from(selected).map((k) => FILTERS.find((f) => f.key === k)?.label).join(", ")}
             </p>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
-      <p className="text-sm text-muted-foreground mb-3">{filtered.length} article(s) found</p>
+      {isLoading ? (
+        <PageState title="Loading verifications..." description="Getting verification status for all articles." />
+      ) : filtered.length === 0 ? (
+        <PageState title="No articles match these filters" description="Adjust filters to broaden the results." />
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">{filtered.length} article(s) found</p>
 
-      <div className="space-y-2">
-        {filtered.map((a: VerificationListItem) => (
-          <Link
-            key={a.id}
-            to={`/articles/${a.id}`}
-            state={{
-              from: `${location.pathname}${location.search}`,
-              scrollY: window.scrollY,
-            }}
-            className="block p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm text-foreground truncate">
-                  {a.title || a.author || "Untitled"} {a.year ? `(${a.year})` : ""}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {[a.author, a.country].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-              <div className="flex gap-1.5 shrink-0 ml-4">
-                {a.verify_peer1 && <Badge variant="outline" className="text-xs border-green-500 text-green-600"><CheckCircle className="h-3 w-3 mr-1" />P1</Badge>}
-                {a.verify_peer2 && <Badge variant="outline" className="text-xs border-green-500 text-green-600"><CheckCircle className="h-3 w-3 mr-1" />P2</Badge>}
-                {a.verify_qa3 && <Badge variant="outline" className="text-xs border-green-500 text-green-600"><CheckCircle className="h-3 w-3 mr-1" />Q3</Badge>}
-                {a.verify_qa4 && <Badge variant="outline" className="text-xs border-green-500 text-green-600"><CheckCircle className="h-3 w-3 mr-1" />Q4</Badge>}
-                {a.qa_score != null && <Badge variant="secondary" className="text-xs font-mono">QA: {a.qa_score}/10</Badge>}
-              </div>
-            </div>
-          </Link>
-        ))}
-        {filtered.length === 0 && (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              No articles match the selected filters.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          <div className="space-y-2">
+            {filtered.map((a: VerificationListItem) => (
+              <Link
+                key={a.id}
+                to={`/articles/${a.id}`}
+                state={{
+                  from: `${location.pathname}${location.search}`,
+                  scrollY: window.scrollY,
+                }}
+                className="block rounded-lg border p-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {a.title || a.author || "Untitled"} {a.year ? `(${a.year})` : ""}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[formatCompactAuthors(a.author, null), a.country].filter(Boolean).join(" - ")}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex shrink-0 flex-wrap gap-1.5">
+                    {a.verify_peer1 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />P1</Badge> : null}
+                    {a.verify_peer2 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />P2</Badge> : null}
+                    {a.verify_qa3 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q3</Badge> : null}
+                    {a.verify_qa4 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q4</Badge> : null}
+                    {a.qa_score != null ? <Badge variant="secondary" className="text-xs font-mono">QA: {a.qa_score}/10</Badge> : null}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

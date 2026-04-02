@@ -1,30 +1,83 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchArticleSummaries, syncCurrentUserDoiMetadata } from "@/lib/articles";
+import { fetchArticleSummaries, syncCurrentUserDoiMetadata, type ArticleListItem } from "@/lib/articles";
+import { formatCompactAuthors } from "@/lib/article-authors";
 import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Users, Beaker, TrendingUp, RefreshCw, PlusCircle, type LucideIcon } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Users, Beaker, TrendingUp, RefreshCw, PlusCircle, type LucideIcon, LayoutDashboard, ShieldCheck, ArrowRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import PageHeader from "@/components/layout/PageHeader";
+import PageState from "@/components/layout/PageState";
+import DashboardSection from "@/components/layout/DashboardSection";
+
+type QueueItem = {
+  article: ArticleListItem;
+  priority: number;
+  actionLabel: "Continue" | "Review" | "Open";
+  actionTo: string;
+};
+
+function isFullyVerified(article: ArticleListItem): boolean {
+  return Boolean(article.verify_peer1 && article.verify_peer2 && article.verify_qa3 && article.verify_qa4);
+}
+
+function buildQueueItem(article: ArticleListItem): QueueItem {
+  if (article.is_draft) {
+    return { article, priority: 0, actionLabel: "Continue", actionTo: `/articles/${article.id}/edit` };
+  }
+
+  if (!isFullyVerified(article)) {
+    return { article, priority: 1, actionLabel: "Review", actionTo: `/articles/${article.id}` };
+  }
+
+  return { article, priority: 2, actionLabel: "Open", actionTo: `/articles/${article.id}` };
+}
+
+function formatActivityDate(value: string | null): string {
+  if (!value) return "Unknown date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
-  const { data: articles = [] } = useQuery({
+  const { data: articles = [], isLoading } = useQuery({
     queryKey: ["articles"],
     queryFn: fetchArticleSummaries,
   });
 
   const totalArticles = articles.length;
   const draftCount = articles.filter((a) => a.is_draft).length;
+  const pendingVerificationCount = articles.filter((a) => !a.is_draft && !isFullyVerified(a)).length;
   const uniqueCountries = new Set(articles.map((a) => a.country).filter(Boolean)).size;
   const validYearRows = articles.filter((a) => a.year != null);
   const avgYear = validYearRows.length
     ? Math.round(validYearRows.reduce((sum, article) => sum + (article.year ?? 0), 0) / validYearRows.length)
     : 0;
+
+  const workQueue = useMemo(() => {
+    return articles
+      .map(buildQueueItem)
+      .sort((a, b) => a.priority - b.priority || (new Date(b.article.created_at ?? 0).getTime() - new Date(a.article.created_at ?? 0).getTime()))
+      .slice(0, 8);
+  }, [articles]);
+
+  const recentActivity = useMemo(() => {
+    return [...articles]
+      .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+      .slice(0, 6);
+  }, [articles]);
 
   const handleSyncDois = async () => {
     setSyncing(true);
@@ -76,90 +129,174 @@ const Dashboard = () => {
     }
   };
 
-  return (
-    <div className="animate-fade-in">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold font-serif text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Systematic review overview</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleSyncDois} disabled={syncing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync DOI Metadata"}
-          </Button>
-          <Button asChild>
-            <Link to="/articles/new">
-              <PlusCircle className="mr-2 h-4 w-4" /> New Article
-            </Link>
-          </Button>
-        </div>
-      </div>
+  if (isLoading) {
+    return <PageState title="Loading dashboard..." description="Gathering your latest article metrics." />;
+  }
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard icon={FileText} label="Total Articles" value={totalArticles} />
-        <StatCard icon={Beaker} label="Drafts" value={draftCount} />
-        <StatCard icon={Users} label="Countries" value={uniqueCountries} />
-        <StatCard icon={TrendingUp} label="Avg. Year" value={avgYear || "-"} />
-      </div>
+  if (articles.length === 0) {
+    return (
+      <div className="page-container">
+        <PageHeader
+          title="Dashboard"
+          subtitle="Systematic review command center."
+          titleIcon={<LayoutDashboard className="h-6 w-6 text-primary" />}
+          actions={
+            <Button asChild>
+              <Link to="/articles/new">
+                <PlusCircle className="mr-2 h-4 w-4" /> New Article
+              </Link>
+            </Button>
+          }
+        />
 
-      {articles.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-serif">Recent Articles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {articles.slice(0, 5).map((a) => (
-                <Link
-                  key={a.id}
-                  to={`/articles/${a.id}`}
-                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div>
-                    <p className="font-medium text-sm text-foreground">
-                      {(a.first_author || a.author || "No author") + (a.year ? ` (${a.year})` : "")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{a.prosthesis_name || a.study_id || "-"}</p>
-                  </div>
-                  {a.is_draft && (
-                    <span className="text-xs text-muted-foreground border rounded px-2 py-0.5">Draft</span>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {articles.length === 0 && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileText className="mb-4 h-12 w-12 text-muted-foreground/40" />
-            <p className="text-muted-foreground mb-2">No articles yet</p>
-            <Button asChild variant="outline">
+        <PageState
+          icon={<FileText className="h-12 w-12" />}
+          title="No articles yet"
+          description="Create your first article to start the review workflow."
+          actions={
+            <Button asChild>
               <Link to="/articles/new">Get Started</Link>
             </Button>
-          </CardContent>
-        </Card>
-      )}
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-container">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Systematic review command center and work queue."
+        titleIcon={<LayoutDashboard className="h-6 w-6 text-primary" />}
+        actions={
+          <>
+            <Button asChild>
+              <Link to="/articles/new">
+                <PlusCircle className="mr-2 h-4 w-4" /> New Article
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={handleSyncDois} disabled={syncing}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing DOI..." : "Sync DOI Metadata"}
+            </Button>
+          </>
+        }
+      />
+
+      <DashboardSection
+        title="Snapshot"
+        subtitle="Quick indicators for current review status."
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard icon={FileText} label="Total Articles" value={totalArticles} helper="All records" tone="default" />
+          <StatCard icon={Beaker} label="Drafts" value={draftCount} helper={draftCount > 0 ? "Need completion" : "No pending drafts"} tone={draftCount > 0 ? "warning" : "default"} />
+          <StatCard icon={ShieldCheck} label="Pending Verification" value={pendingVerificationCount} helper={pendingVerificationCount > 0 ? "Needs review" : "All verified"} tone={pendingVerificationCount > 0 ? "warning" : "success"} />
+          <StatCard icon={Users} label="Countries" value={uniqueCountries} helper={avgYear ? `Avg. Year ${avgYear}` : "Year not available"} tone="default" />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection
+        title="Work Queue"
+        subtitle="Priority-ordered items that need action now."
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/articles">View All Articles</Link>
+          </Button>
+        }
+      >
+        <div className="space-y-2">
+          {workQueue.map((item) => (
+            <article key={item.article.id} className="flex flex-col gap-3 rounded-lg border bg-background/80 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {formatCompactAuthors(item.article.author, item.article.first_author) + (item.article.year ? ` (${item.article.year})` : "")}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.article.prosthesis_name || item.article.study_id || item.article.title || "No details"}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {item.article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : null}
+                  {!item.article.is_draft && isFullyVerified(item.article) ? <StatusBadge tone="success">Verified</StatusBadge> : null}
+                  {!item.article.is_draft && !isFullyVerified(item.article) ? <StatusBadge tone="warning">Pending</StatusBadge> : null}
+                </div>
+              </div>
+
+              <Button asChild size="sm" className="self-start sm:self-auto">
+                <Link to={item.actionTo}>
+                  {item.actionLabel}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </article>
+          ))}
+        </div>
+      </DashboardSection>
+
+      <DashboardSection
+        title="Recent Activity"
+        subtitle="Most recently updated records."
+      >
+        <div className="grid gap-2 lg:grid-cols-2">
+          {recentActivity.map((article) => (
+            <Link
+              key={article.id}
+              to={`/articles/${article.id}`}
+              className="rounded-lg border bg-background/80 p-3 transition-colors hover:bg-muted/40"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{article.title || article.first_author || article.author || "Untitled"}</p>
+                  <p className="text-xs text-muted-foreground">{formatActivityDate(article.created_at)}</p>
+                </div>
+                {article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : <StatusBadge tone="success">Saved</StatusBadge>}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </DashboardSection>
     </div>
   );
 };
 
-function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string | number }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  helper: string;
+  tone: "default" | "warning" | "success";
+}) {
+  const iconTone = tone === "warning" ? "bg-warning/20 text-warning-foreground" : tone === "success" ? "bg-accent/20 text-accent" : "bg-primary/10 text-primary";
+
   return (
-    <Card>
+    <Card className="h-full border-border/80">
       <CardContent className="flex items-center gap-4 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="h-5 w-5 text-primary" />
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconTone}`}>
+          <Icon className="h-5 w-5" />
         </div>
-        <div>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="min-w-0">
+          <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="mt-1 text-xs text-muted-foreground/90">{helper}</p>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function StatusBadge({ tone, children }: { tone: "warning" | "success"; children: string }) {
+  const className = tone === "warning"
+    ? "border-warning/40 bg-warning/20 text-warning-foreground"
+    : "border-accent/40 bg-accent/15 text-accent";
+
+  return (
+    <Badge variant="outline" className={className}>
+      {children}
+    </Badge>
   );
 }
 

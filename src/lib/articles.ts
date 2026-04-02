@@ -8,13 +8,45 @@ export type ArticleInsert = Omit<Article, "id" | "created_at" | "updated_at">;
 
 export type ArticleListItem = Pick<
   Article,
-  "id" | "title" | "author" | "first_author" | "study_id" | "country" | "prosthesis_name" | "year" | "is_draft" | "created_at"
+  | "id"
+  | "title"
+  | "author"
+  | "first_author"
+  | "study_id"
+  | "country"
+  | "prosthesis_name"
+  | "year"
+  | "is_draft"
+  | "created_at"
+  | "verify_peer1"
+  | "verify_peer2"
+  | "verify_qa3"
+  | "verify_qa4"
+  | "qa_score"
 >;
 
 export type VerificationListItem = Pick<
   Article,
   "id" | "title" | "author" | "year" | "country" | "verify_peer1" | "verify_peer2" | "verify_qa3" | "verify_qa4" | "qa_score"
 >;
+
+export type ArticleListSort = "recent_desc" | "year_desc" | "year_asc" | "qa_desc" | "qa_asc";
+export type ArticleListStatus = "all" | "verified" | "pending" | "draft";
+export type ArticleListVerificationFilter = "verify_peer1" | "verify_peer2" | "verify_qa3" | "verify_qa4";
+
+export type FetchArticlesPageParams = {
+  page: number;
+  pageSize: number;
+  search: string;
+  country?: string;
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  qaMin?: number | null;
+  qaMax?: number | null;
+  status?: ArticleListStatus;
+  verificationFilters?: ArticleListVerificationFilter[];
+  sort?: ArticleListSort;
+};
 
 export type DoiSyncReviewField = "doi" | "title" | "year" | "author" | "first_author" | "last_author" | "abstract";
 export type DoiReviewSnapshot = Pick<Article, DoiSyncReviewField>;
@@ -353,7 +385,7 @@ export async function fetchArticle(id: string) {
 export async function fetchArticleSummaries() {
   const { data, error } = await supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at")
+    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleListItem[];
@@ -368,13 +400,26 @@ export async function fetchVerificationSummaries() {
   return data as VerificationListItem[];
 }
 
-export async function fetchArticlesPage(page: number, pageSize: number, search: string) {
+export async function fetchArticlesPage(params: FetchArticlesPageParams) {
+  const {
+    page,
+    pageSize,
+    search,
+    country,
+    yearFrom,
+    yearTo,
+    qaMin,
+    qaMax,
+    status = "all",
+    verificationFilters = [],
+    sort = "recent_desc",
+  } = params;
+
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   let query = supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at", { count: "exact" })
-    .order("created_at", { ascending: false })
+    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
     .range(from, to);
 
   const term = search.trim();
@@ -383,6 +428,57 @@ export async function fetchArticlesPage(page: number, pageSize: number, search: 
     query = query.or(
       `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
     );
+  }
+
+  if (country && country !== "all") {
+    query = query.eq("country", country);
+  }
+
+  if (yearFrom != null) {
+    query = query.gte("year", yearFrom);
+  }
+
+  if (yearTo != null) {
+    query = query.lte("year", yearTo);
+  }
+
+  if (qaMin != null) {
+    query = query.gte("qa_score", qaMin);
+  }
+
+  if (qaMax != null) {
+    query = query.lte("qa_score", qaMax);
+  }
+
+  if (status === "draft") {
+    query = query.eq("is_draft", true);
+  } else if (status === "verified") {
+    query = query
+      .eq("is_draft", false)
+      .eq("verify_peer1", true)
+      .eq("verify_peer2", true)
+      .eq("verify_qa3", true)
+      .eq("verify_qa4", true);
+  } else if (status === "pending") {
+    query = query
+      .eq("is_draft", false)
+      .or("verify_peer1.is.false,verify_peer2.is.false,verify_qa3.is.false,verify_qa4.is.false");
+  }
+
+  for (const verificationFilter of verificationFilters) {
+    query = query.eq(verificationFilter, true);
+  }
+
+  if (sort === "year_desc") {
+    query = query.order("year", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+  } else if (sort === "year_asc") {
+    query = query.order("year", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+  } else if (sort === "qa_desc") {
+    query = query.order("qa_score", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
+  } else if (sort === "qa_asc") {
+    query = query.order("qa_score", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+  } else {
+    query = query.order("created_at", { ascending: false });
   }
 
   const { data, error, count } = await query;

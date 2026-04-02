@@ -28,7 +28,7 @@ const VerificationToggles = ({ values, onToggle }: Props) => {
             variant={active ? "default" : "outline"}
             className={cn(
               "transition-colors",
-              active && "bg-green-600 hover:bg-green-700 text-white border-green-600"
+              active && "border-accent bg-accent text-accent-foreground hover:bg-accent/90"
             )}
             onClick={() => onToggle(key)}
           >

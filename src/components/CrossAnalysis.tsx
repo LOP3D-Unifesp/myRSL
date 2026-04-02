@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { type Article } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Building2, FlaskConical, Target, ArrowLeft } from "lucide-react";
+import { Users, Building2, FlaskConical, Target, ArrowLeft, Search, ArrowUpDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import { splitAndNormalizeCountries } from "@/lib/country-normalization";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq";
 type GroupItem = { key: string; name: string; items: Article[] };
+type GroupSort = "count_desc" | "count_asc" | "name_asc" | "name_desc";
 
 function normalizeGroupKey(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -68,13 +71,32 @@ export function groupArticlesForCrossAnalysis(articles: Article[], mode: GroupMo
   return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length);
 }
 
+function sortGroups(groups: GroupItem[], sort: GroupSort): GroupItem[] {
+  const cloned = [...groups];
+  if (sort === "count_desc") return cloned.sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name));
+  if (sort === "count_asc") return cloned.sort((a, b) => a.items.length - b.items.length || a.name.localeCompare(b.name));
+  if (sort === "name_desc") return cloned.sort((a, b) => b.name.localeCompare(a.name));
+  return cloned.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
   const [mode, setMode] = useState<GroupMode>("last_author");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [groupSearch, setGroupSearch] = useState("");
+  const [groupSort, setGroupSort] = useState<GroupSort>("count_desc");
+  const [detailSearch, setDetailSearch] = useState("");
 
-  const groups = useMemo(() => groupArticlesForCrossAnalysis(articles, mode), [articles, mode]);
+  const grouped = useMemo(() => groupArticlesForCrossAnalysis(articles, mode), [articles, mode]);
 
-  const modeLabels: Record<GroupMode, { label: string; icon: React.ReactNode }> = {
+  const groups = useMemo(() => {
+    const term = groupSearch.trim().toLowerCase();
+    const filtered = !term
+      ? grouped
+      : grouped.filter((group) => group.name.toLowerCase().includes(term));
+    return sortGroups(filtered, groupSort);
+  }, [grouped, groupSearch, groupSort]);
+
+  const modeLabels: Record<GroupMode, { label: string; icon: ReactNode }> = {
     author: { label: "Author", icon: <Users className="h-4 w-4" /> },
     last_author: { label: "Last Author", icon: <Users className="h-4 w-4" /> },
     first_author: { label: "First Author", icon: <Users className="h-4 w-4" /> },
@@ -84,42 +106,75 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
     primary_rq: { label: "Primary Research Question", icon: <Target className="h-4 w-4" /> },
   };
 
+  const largestGroup = grouped[0];
+
   if (selectedGroup) {
-    const group = groups.find((g) => g.key === selectedGroup);
+    const group = grouped.find((g) => g.key === selectedGroup);
     if (!group) return null;
+
+    const filteredItems = group.items.filter((item) => {
+      const term = detailSearch.trim().toLowerCase();
+      if (!term) return true;
+      return [item.title, item.author, item.country, item.study_design].filter(Boolean).join(" ").toLowerCase().includes(term);
+    });
+
     return (
-      <Card>
-        <CardHeader>
+      <Card className="border-border/80">
+        <CardHeader className="space-y-4">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setSelectedGroup(null)}><ArrowLeft className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => setSelectedGroup(null)} aria-label="Back to groups">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <CardTitle className="text-lg font-serif">{group.name} ({group.items.length} articles)</CardTitle>
           </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={detailSearch}
+              onChange={(e) => setDetailSearch(e.target.value)}
+              placeholder="Search inside this group..."
+              className="pl-10"
+              aria-label="Search inside selected group"
+            />
+          </div>
         </CardHeader>
+
         <CardContent className="space-y-2">
-          {group.items.map((a) => (
-            <Link key={a.id} to={`/articles/${a.id}`} className="block p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+          {filteredItems.map((a) => (
+            <Link key={a.id} to={`/articles/${a.id}`} className="block rounded-lg border p-3 transition-colors hover:bg-muted/50">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{a.title || a.author || "Untitled"}</span>
-                {a.year && <Badge variant="secondary" className="text-xs">{a.year}</Badge>}
+                <span className="text-sm font-medium">{a.title || a.author || "Untitled"}</span>
+                {a.year ? <Badge variant="secondary" className="text-xs">{a.year}</Badge> : null}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {[a.author, a.country, a.study_design].filter(Boolean).join(" · ")}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {[a.author, a.country, a.study_design].filter(Boolean).join(" - ")}
               </p>
             </Link>
           ))}
+          {filteredItems.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">No articles match this search.</p> : null}
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg font-serif">Cross-Analysis</CardTitle>
-        <p className="text-sm text-muted-foreground">Group and compare articles by different dimensions</p>
+    <Card className="border-border/80">
+      <CardHeader className="space-y-4">
+        <div>
+          <CardTitle className="text-lg font-serif">Cross-Analysis</CardTitle>
+          <p className="text-sm text-muted-foreground">Group and compare articles by different dimensions.</p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <SummaryMetric label="Total Groups" value={String(grouped.length)} />
+          <SummaryMetric label="Total Articles" value={String(articles.length)} />
+          <SummaryMetric label="Largest Group" value={largestGroup ? `${largestGroup.name} (${largestGroup.items.length})` : "N/A"} />
+        </div>
       </CardHeader>
+
       <CardContent className="space-y-4">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           {(Object.keys(modeLabels) as GroupMode[]).map((m) => (
             <Button key={m} variant={mode === m ? "default" : "outline"} size="sm" onClick={() => setMode(m)}>
               {modeLabels[m].icon}
@@ -127,25 +182,62 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
             </Button>
           ))}
         </div>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={groupSearch}
+              onChange={(e) => setGroupSearch(e.target.value)}
+              placeholder="Search groups..."
+              className="pl-10"
+              aria-label="Search group names"
+            />
+          </div>
+
+          <Select value={groupSort} onValueChange={(value) => setGroupSort(value as GroupSort)}>
+            <SelectTrigger aria-label="Sort groups">
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                <SelectValue />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="count_desc">Most articles first</SelectItem>
+              <SelectItem value="count_asc">Fewest articles first</SelectItem>
+              <SelectItem value="name_asc">Name A-Z</SelectItem>
+              <SelectItem value="name_desc">Name Z-A</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
           {groups.map((g) => (
             <button
               key={g.key}
               onClick={() => setSelectedGroup(g.key)}
-              className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors flex items-center justify-between"
+              className="flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors hover:bg-muted/50"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                {modeLabels[mode].icon}
-                <span className="text-sm font-medium truncate">{g.name}</span>
+              <div className="min-w-0">
+                <span className="truncate text-sm font-medium">{g.name}</span>
               </div>
               <Badge variant="secondary">{g.items.length}</Badge>
             </button>
           ))}
-          {groups.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No data available</p>}
+          {groups.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">No groups found for this filter.</p> : null}
         </div>
       </CardContent>
     </Card>
   );
 };
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/25 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="truncate text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
 
 export default CrossAnalysis;

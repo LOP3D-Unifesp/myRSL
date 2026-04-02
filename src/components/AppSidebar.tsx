@@ -1,15 +1,14 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, FileText, PlusCircle, BarChart3, LogOut, Menu, X, ShieldCheck, RefreshCw } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, BarChart3, LogOut, Menu, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/articles", icon: FileText, label: "Articles" },
   { to: "/articles/new", icon: PlusCircle, label: "New Article" },
-  { to: "/verifications", icon: ShieldCheck, label: "Verifications" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/doi-sync/review", icon: RefreshCw, label: "DOI Review" },
 ];
@@ -18,6 +17,15 @@ const AppSidebar = () => {
   const { signOut } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
 
   const sidebarContent = (
     <>
@@ -29,7 +37,11 @@ const AppSidebar = () => {
           <h2 className="text-sm font-semibold text-sidebar-foreground">LO&P3D</h2>
           <p className="text-[10px] text-sidebar-foreground/60">Systematic Review</p>
         </div>
-        <button onClick={() => setMobileOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground">
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="ml-auto rounded-md p-1 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          aria-label="Close navigation menu"
+        >
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -46,13 +58,13 @@ const AppSidebar = () => {
               to={to}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                "group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  ? "border-sidebar-primary/40 bg-sidebar-accent text-sidebar-foreground shadow-sm"
+                  : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={cn("h-4 w-4", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground")} />
               {label}
             </NavLink>
           );
@@ -62,7 +74,7 @@ const AppSidebar = () => {
       <div className="border-t border-sidebar-border p-3">
         <button
           onClick={signOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
           <LogOut className="h-4 w-4" />
           Sign Out
@@ -74,8 +86,8 @@ const AppSidebar = () => {
   return (
     <>
       {/* Mobile hamburger */}
-      <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center bg-background border-b px-4 lg:hidden">
-        <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
+      <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center border-b bg-background px-4 lg:hidden">
+        <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open navigation menu">
           <Menu className="h-5 w-5" />
         </Button>
         <span className="ml-2 font-semibold text-foreground">LO&P3D</span>
@@ -83,8 +95,14 @@ const AppSidebar = () => {
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)}>
-          <aside className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] lg:hidden" onClick={() => setMobileOpen(false)}>
+          <aside
+            className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Navigation menu"
+            aria-modal="true"
+          >
             {sidebarContent}
           </aside>
         </div>
