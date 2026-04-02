@@ -31,8 +31,11 @@ URL esperada do site:
 1. Abra o repositorio `LOP3D-Unifesp/myRSL`.
 2. Va em `Settings` > `Pages`.
 3. Em `Source`, selecione `GitHub Actions`.
-4. Faça push na `main` (ou rode manualmente o workflow em `Actions`).
-5. Acompanhe o workflow `Deploy GitHub Pages`.
+4. Va em `Settings` > `Secrets and variables` > `Actions` e crie os secrets:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+5. Faça push na `main` (ou rode manualmente o workflow em `Actions`).
+6. Acompanhe o workflow `Deploy GitHub Pages`.
 
 ## Notas de deploy
 

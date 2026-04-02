@@ -30,7 +30,24 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Validate required env vars
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            echo "Missing secret: VITE_SUPABASE_URL"
+            exit 1
+          fi
+          if [ -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Missing secret: VITE_SUPABASE_PUBLISHABLE_KEY"
+            exit 1
+          fi
+
       - name: Build app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
 
       - name: SPA fallback

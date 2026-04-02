@@ -2,8 +2,23 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL ||
+  (PROJECT_ID ? `https://${PROJECT_ID}.supabase.co` : undefined);
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL) {
+  throw new Error(
+    'Missing Supabase URL. Configure VITE_SUPABASE_URL (or VITE_SUPABASE_PROJECT_ID) in build environment.',
+  );
+}
+
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error(
+    'Missing Supabase publishable key. Configure VITE_SUPABASE_PUBLISHABLE_KEY in build environment.',
+  );
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
