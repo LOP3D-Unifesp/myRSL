@@ -1,0 +1,21 @@
+
+ALTER TABLE public.articles
+  ADD COLUMN IF NOT EXISTS doi text,
+  ADD COLUMN IF NOT EXISTS first_author text,
+  ADD COLUMN IF NOT EXISTS sensors_used text,
+  ADD COLUMN IF NOT EXISTS feedback_modalities_text text,
+  ADD COLUMN IF NOT EXISTS verify_peer1 boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS verify_peer2 boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS verify_qa3 boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS verify_qa4 boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS qa_q1 text,
+  ADD COLUMN IF NOT EXISTS qa_q2 text,
+  ADD COLUMN IF NOT EXISTS qa_q3 text,
+  ADD COLUMN IF NOT EXISTS qa_q4 text,
+  ADD COLUMN IF NOT EXISTS qa_q5 text,
+  ADD COLUMN IF NOT EXISTS qa_q6 text,
+  ADD COLUMN IF NOT EXISTS qa_q7 text,
+  ADD COLUMN IF NOT EXISTS qa_q8 text,
+  ADD COLUMN IF NOT EXISTS qa_q9 text,
+  ADD COLUMN IF NOT EXISTS qa_q10 text,
+  ADD COLUMN IF NOT EXISTS qa_score numeric;
