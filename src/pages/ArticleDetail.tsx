@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchArticle, updateArticle, type ArticleInsert } from "@/lib/articles";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ type VerificationKey = "verify_peer1" | "verify_peer2" | "verify_qa3" | "verify_
 const ArticleDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [showPdf, setShowPdf] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -84,6 +85,15 @@ const ArticleDetail = () => {
     link.click();
   };
 
+  const handleBack = () => {
+    const state = location.state as { from?: string } | null;
+    if (state?.from) {
+      navigate(state.from);
+      return;
+    }
+    navigate(-1);
+  };
+
   if (isLoading) return <div className="py-20 text-center text-muted-foreground">Loading…</div>;
   if (!article) return <div className="py-20 text-center text-muted-foreground">Article not found</div>;
 
@@ -96,7 +106,7 @@ const ArticleDetail = () => {
       {/* Top Bar */}
       <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" onClick={handleBack} aria-label="Go back">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   invalidateQueriesMock: vi.fn(),
   updateArticleMock: vi.fn(),
   navigateMock: vi.fn(),
+  locationState: null as { from?: string } | null,
 }));
 
 const articleFixture: Article = {
@@ -90,6 +91,7 @@ vi.mock("react-router-dom", async () => {
     ...actual,
     useParams: () => ({ id: "article-1" }),
     useNavigate: () => mocks.navigateMock,
+    useLocation: () => ({ state: mocks.locationState }),
   };
 });
 
@@ -109,7 +111,20 @@ vi.mock("@/lib/pdf-storage", () => ({
 import ArticleDetail from "@/pages/ArticleDetail";
 
 describe("ArticleDetail", () => {
+  it("uses `from` state when clicking back", async () => {
+    mocks.locationState = { from: "/verifications?filters=verify_peer2,verify_qa4" };
+    render(
+      <MemoryRouter>
+        <ArticleDetail />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /go back/i }));
+    expect(mocks.navigateMock).toHaveBeenCalledWith("/verifications?filters=verify_peer2,verify_qa4");
+  });
+
   it("toggles verification and calls updateArticle", async () => {
+    mocks.locationState = null;
     mocks.updateArticleMock.mockResolvedValue({ ...articleFixture, verify_peer1: true });
     render(
       <MemoryRouter>
