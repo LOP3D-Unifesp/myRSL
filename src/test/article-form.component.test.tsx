@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createArticleMock: vi.fn(),
   updateArticleMock: vi.fn(),
   navigateMock: vi.fn(),
+  paramsMock: {} as Record<string, string>,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -15,7 +16,7 @@ vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
-    useParams: () => ({}),
+    useParams: () => mocks.paramsMock,
     useNavigate: () => mocks.navigateMock,
   };
 });
@@ -41,7 +42,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 import ArticleForm from "@/pages/ArticleForm";
 
 describe("ArticleForm", () => {
-  it("saves first author mirrored to legacy author", async () => {
+  it("saves first author without overwriting authors list", async () => {
+    mocks.paramsMock = {};
     mocks.createArticleMock.mockResolvedValue({ id: "article-1" });
     const { container } = render(<ArticleForm />);
 
@@ -61,7 +63,26 @@ describe("ArticleForm", () => {
 
     const payload = mocks.createArticleMock.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.first_author).toBe("Alice");
-    expect(payload.author).toBe("Alice");
+    expect(payload.author).toBeNull();
     expect(mocks.navigateMock).toHaveBeenCalledWith("/articles");
+  });
+
+  it("navigates back to article detail after editing", async () => {
+    mocks.paramsMock = { id: "article-42" };
+    mocks.updateArticleMock.mockResolvedValue({ id: "article-42" });
+
+    render(<ArticleForm />);
+
+    for (let index = 0; index < 5; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: /Next/i }));
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: /Save Final/i }));
+
+    await waitFor(() => {
+      expect(mocks.updateArticleMock).toHaveBeenCalled();
+    });
+
+    expect(mocks.navigateMock).toHaveBeenCalledWith("/articles/article-42");
   });
 });

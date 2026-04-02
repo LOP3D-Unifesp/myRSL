@@ -6,6 +6,15 @@ interface Props {
   article: Article;
 }
 
+function deriveFirstAuthorFromAuthors(authors: string | null | undefined): string | null {
+  if (!authors) return null;
+  const first = authors
+    .split(";")
+    .map((part) => part.trim())
+    .find(Boolean);
+  return first || null;
+}
+
 const ArticleDetailContent = ({ article }: Props) => {
   return (
     <div className="space-y-4">
@@ -19,7 +28,8 @@ const ArticleDetailContent = ({ article }: Props) => {
           </div>
         )}
         <Row label="Study ID" value={article.study_id} />
-        <Row label="First Author" value={article.first_author || article.author} />
+        <Row label="Author(s)" value={article.author} />
+        <Row label="First Author" value={article.first_author || deriveFirstAuthorFromAuthors(article.author)} />
         <Row label="Last Author" value={article.last_author} />
         <Row label="Universities / Research Centers" value={article.universities} />
         <Row label="Country" value={article.country} />

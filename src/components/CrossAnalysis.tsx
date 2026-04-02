@@ -3,43 +3,79 @@ import { type Article } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Building2, FlaskConical, Target, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { splitAndNormalizeCountries } from "@/lib/country-normalization";
 
-type GroupMode = "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq";
+type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq";
+type GroupItem = { key: string; name: string; items: Article[] };
+
+function normalizeGroupKey(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split(" ")
+    .map((part) => {
+      if (!part) return part;
+      return part[0].toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function normalizeAndLabel(value: string): { key: string; label: string } {
+  const collapsed = value.trim().replace(/\s+/g, " ");
+  const key = normalizeGroupKey(collapsed);
+  return { key, label: toTitleCase(collapsed) };
+}
+
+function getKeysForMode(article: Article, mode: GroupMode): string[] {
+  if (mode === "author") {
+    if (article.author) {
+      const authors = article.author.split(";").map((a) => a.trim()).filter(Boolean);
+      if (authors.length > 0) return authors;
+    }
+    if (article.first_author) return [article.first_author];
+    return ["Unknown"];
+  }
+  if (mode === "last_author") return article.last_author ? [article.last_author] : ["Unknown"];
+  if (mode === "first_author") return (article.first_author || article.author) ? [article.first_author || article.author!] : ["Unknown"];
+  if (mode === "university") return article.universities ? article.universities.split(";").map((u) => u.trim()).filter(Boolean) : ["Unknown"];
+  if (mode === "country") {
+    const countries = splitAndNormalizeCountries(article.country);
+    return countries.length > 0 ? countries : ["Unknown"];
+  }
+  if (mode === "pediatric") return [article.has_pediatric_participants || "Not reported"];
+  return [article.primary_research_question || "Not assigned"];
+}
+
+export function groupArticlesForCrossAnalysis(articles: Article[], mode: GroupMode): GroupItem[] {
+  const map = new Map<string, GroupItem>();
+  articles.forEach((article) => {
+    const keys = getKeysForMode(article, mode);
+    keys.forEach((rawKey) => {
+      const { key, label } = normalizeAndLabel(rawKey);
+      const existing = map.get(key);
+      if (existing) {
+        existing.items.push(article);
+      } else {
+        map.set(key, { key, name: label, items: [article] });
+      }
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) => b.items.length - a.items.length);
+}
 
 const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
   const [mode, setMode] = useState<GroupMode>("last_author");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  const groups = useMemo(() => {
-    const map: Record<string, Article[]> = {};
-    articles.forEach((a) => {
-      let keys: string[] = [];
-      if (mode === "last_author") {
-        keys = a.last_author ? [a.last_author] : ["Unknown"];
-      } else if (mode === "first_author") {
-        keys = (a.first_author || a.author) ? [a.first_author || a.author!] : ["Unknown"];
-      } else if (mode === "university") {
-        keys = a.universities ? a.universities.split(";").map((u) => u.trim()).filter(Boolean) : ["Unknown"];
-      } else if (mode === "country") {
-        const countries = splitAndNormalizeCountries(a.country);
-        keys = countries.length > 0 ? countries : ["Unknown"];
-      } else if (mode === "pediatric") {
-        keys = [a.has_pediatric_participants || "Not reported"];
-      } else if (mode === "primary_rq") {
-        keys = [a.primary_research_question || "Not assigned"];
-      }
-      keys.forEach((k) => { (map[k] = map[k] || []).push(a); });
-    });
-    return Object.entries(map)
-      .map(([name, items]) => ({ name, items }))
-      .sort((a, b) => b.items.length - a.items.length);
-  }, [articles, mode]);
+  const groups = useMemo(() => groupArticlesForCrossAnalysis(articles, mode), [articles, mode]);
 
   const modeLabels: Record<GroupMode, { label: string; icon: React.ReactNode }> = {
+    author: { label: "Author", icon: <Users className="h-4 w-4" /> },
     last_author: { label: "Last Author", icon: <Users className="h-4 w-4" /> },
     first_author: { label: "First Author", icon: <Users className="h-4 w-4" /> },
     university: { label: "University / Research Center", icon: <Building2 className="h-4 w-4" /> },
@@ -49,14 +85,14 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
   };
 
   if (selectedGroup) {
-    const group = groups.find((g) => g.name === selectedGroup);
+    const group = groups.find((g) => g.key === selectedGroup);
     if (!group) return null;
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => setSelectedGroup(null)}><ArrowLeft className="h-4 w-4" /></Button>
-            <CardTitle className="text-lg font-serif">{selectedGroup} ({group.items.length} articles)</CardTitle>
+            <CardTitle className="text-lg font-serif">{group.name} ({group.items.length} articles)</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -94,8 +130,8 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
         <div className="space-y-2 max-h-[400px] overflow-y-auto">
           {groups.map((g) => (
             <button
-              key={g.name}
-              onClick={() => setSelectedGroup(g.name)}
+              key={g.key}
+              onClick={() => setSelectedGroup(g.key)}
               className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors flex items-center justify-between"
             >
               <div className="flex items-center gap-2 min-w-0">

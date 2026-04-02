@@ -35,6 +35,15 @@ const STEPS = [
   "6. Research Scope",
 ];
 
+function deriveFirstAuthorFromAuthors(authors: string | null | undefined): string {
+  if (!authors) return "";
+  const first = authors
+    .split(";")
+    .map((item) => item.trim())
+    .find(Boolean);
+  return first ?? "";
+}
+
 const ArticleForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,10 +73,7 @@ const ArticleForm = () => {
 
   useEffect(() => {
     if (existing) {
-      setForm({
-        ...existing,
-        first_author: existing.first_author ?? existing.author,
-      });
+      setForm(existing);
     }
   }, [existing]);
 
@@ -111,17 +117,18 @@ const ArticleForm = () => {
         ...form,
         is_draft: draft,
         pdf_url: pdfUrl,
-        first_author: form.first_author ?? form.author ?? null,
-        author: form.first_author ?? form.author ?? null,
+        first_author: form.first_author ?? null,
+        author: form.author ?? null,
       };
       if (isEditing) {
-        await updateArticle(id!, payload);
+        const updated = await updateArticle(id!, payload);
         toast.success("Article updated!");
+        navigate(`/articles/${updated.id}`);
       } else {
         await createArticle(payload);
         toast.success("Article saved!");
+        navigate("/articles");
       }
-      navigate("/articles");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error saving article";
       toast.error(message);
@@ -156,8 +163,8 @@ const ArticleForm = () => {
           setForm((prev) => ({
             ...prev,
             ...sanitizedExtracted,
-            first_author: sanitizedExtracted.first_author ?? sanitizedExtracted.author ?? prev.first_author ?? prev.author,
-            author: sanitizedExtracted.first_author ?? sanitizedExtracted.author ?? prev.author ?? prev.first_author,
+            first_author: sanitizedExtracted.first_author !== undefined ? sanitizedExtracted.first_author : prev.first_author,
+            author: sanitizedExtracted.author !== undefined ? sanitizedExtracted.author : prev.author,
           }));
           toast.success("PDF data extracted! Please review and edit before saving.");
         }
@@ -287,12 +294,20 @@ const ArticleForm = () => {
               {!pdfFile && form.pdf_url && <p className="text-sm text-muted-foreground">📎 PDF already uploaded</p>}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Study ID / Reference" value={form.study_id} onChange={(v) => set("study_id", v)} />
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Authors (all, separated by ;)</Label>
+                  <Textarea
+                    value={form.author ?? ""}
+                    onChange={(e) => set("author", e.target.value)}
+                    rows={3}
+                    placeholder="First Author; Second Author; Third Author"
+                  />
+                </div>
                 <Field
                   label="First Author"
-                  value={form.first_author ?? form.author}
+                  value={form.first_author ?? deriveFirstAuthorFromAuthors(form.author)}
                   onChange={(v) => {
                     set("first_author", v);
-                    set("author", v);
                   }}
                 />
                 <Field label="Last Author" value={form.last_author} onChange={(v) => set("last_author", v)} />

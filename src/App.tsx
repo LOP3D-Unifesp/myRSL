@@ -16,6 +16,7 @@ const ArticleForm = lazy(() => import("./pages/ArticleForm"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Verifications = lazy(() => import("./pages/Verifications"));
+const DoiConflictReview = lazy(() => import("./pages/DoiConflictReview"));
 const routerBase = import.meta.env.BASE_URL;
 
 function ProtectedRoutes() {
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="/articles/:id/edit" element={<ArticleForm />} />
               <Route path="/verifications" element={<Verifications />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/doi-sync/review" element={<DoiConflictReview />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

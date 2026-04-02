@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchArticleSummaries } from "@/lib/articles";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchArticleSummaries, syncCurrentUserDoiMetadata } from "@/lib/articles";
+import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Users, Beaker, TrendingUp, RefreshCw, PlusCircle, type LucideIcon } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
@@ -30,28 +31,45 @@ const Dashboard = () => {
     try {
       const eligibleIds = articles.filter((a) => a.title).map((a) => a.id);
       if (eligibleIds.length === 0) {
-        toast.info("No eligible articles found for DOI sync.");
+        toast.info("No eligible articles found for metadata sync.");
         return;
       }
 
-      toast.info(`Syncing DOIs for up to ${eligibleIds.length} article(s)...`);
-      const { data, error } = await supabase.functions.invoke("sync-dois", {
-        body: { articleIds: eligibleIds },
+      toast.info(`Syncing DOI metadata for up to ${eligibleIds.length} article(s)...`);
+      const data = await syncCurrentUserDoiMetadata({
+        articleIds: eligibleIds,
+        includeAbstract: true,
       });
-      if (error) throw error;
 
-      const updated = typeof data?.updated === "number" ? data.updated : 0;
-      const failed = typeof data?.failed === "number" ? data.failed : 0;
-      const skipped = typeof data?.skipped === "number" ? data.skipped : 0;
+      const updated = data.summary.updated_safe;
+      const unchanged = data.summary.unchanged;
+      const missingSource = data.summary.missing_source;
+      const failed = data.summary.failed;
+      const conflictFields = data.summary.conflict_fields;
+      const conflictArticles = data.summary.conflict_articles;
 
       const summary = [`${updated} updated`];
+      if (unchanged > 0) summary.push(`${unchanged} unchanged`);
+      if (missingSource > 0) summary.push(`${missingSource} missing source`);
       if (failed > 0) summary.push(`${failed} failed`);
-      if (skipped > 0) summary.push(`${skipped} skipped`);
-      toast.success(`DOI sync complete: ${summary.join(", ")}`);
+      if (conflictFields > 0) summary.push(`${conflictFields} conflicts`);
+      toast.success(`DOI metadata sync complete: ${summary.join(", ")}`);
+
+      if (data.conflictQueue.length > 0) {
+        saveDoiConflictReviewState({
+          createdAt: new Date().toISOString(),
+          summary: data.summary,
+          queue: data.conflictQueue,
+          currentIndex: 0,
+          started: false,
+        });
+        toast.info(`${conflictArticles} article(s) need manual review. Opening DOI Review...`);
+        navigate("/doi-sync/review");
+      }
 
       queryClient.invalidateQueries({ queryKey: ["articles"] });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "DOI sync failed";
+      const message = error instanceof Error ? error.message : "DOI metadata sync failed";
       toast.error(message);
     } finally {
       setSyncing(false);
@@ -68,7 +86,7 @@ const Dashboard = () => {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handleSyncDois} disabled={syncing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync Missing DOIs"}
+            {syncing ? "Syncing..." : "Sync DOI Metadata"}
           </Button>
           <Button asChild>
             <Link to="/articles/new">

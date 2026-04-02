@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchArticlesPage, deleteArticle, type ArticleListItem } from "@/lib/articles";
+import { fetchArticlesPage, deleteArticle, exportCurrentUserArticlesToExcel, type ArticleListItem } from "@/lib/articles";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Search, Eye, Pencil, Trash2, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, Search, Eye, Pencil, Trash2, FileText, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -26,6 +26,7 @@ const ArticlesList = () => {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -55,6 +56,18 @@ const ArticlesList = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const { count } = await exportCurrentUserArticlesToExcel();
+      toast.success(`Excel export completed (${count} article${count === 1 ? "" : "s"})`);
+    } catch {
+      toast.error("Failed to export articles to Excel");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -62,11 +75,17 @@ const ArticlesList = () => {
           <h1 className="text-2xl font-bold font-serif text-foreground">Articles</h1>
           <p className="text-sm text-muted-foreground">{totalCount} articles registered</p>
         </div>
-        <Button asChild>
-          <Link to="/articles/new">
-            <PlusCircle className="mr-2 h-4 w-4" /> New Article
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportExcel} disabled={exporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Export Excel"}
+          </Button>
+          <Button asChild>
+            <Link to="/articles/new">
+              <PlusCircle className="mr-2 h-4 w-4" /> New Article
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4">

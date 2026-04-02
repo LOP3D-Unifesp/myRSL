@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, FileText, PlusCircle, BarChart3, LogOut, Menu, X, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, BarChart3, LogOut, Menu, X, ShieldCheck, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -11,6 +11,7 @@ const navItems = [
   { to: "/articles/new", icon: PlusCircle, label: "New Article" },
   { to: "/verifications", icon: ShieldCheck, label: "Verifications" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/doi-sync/review", icon: RefreshCw, label: "DOI Review" },
 ];
 
 const AppSidebar = () => {
