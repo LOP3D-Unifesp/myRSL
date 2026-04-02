@@ -145,7 +145,7 @@ const ArticleForm = () => {
       try {
         const base64 = (reader.result as string).split(",")[1];
         const { data, error } = await supabase.functions.invoke("extract-pdf", {
-          body: { pdfBase64: base64, fileName: file.name },
+          body: { pdfBase64: base64, fileName: file.name, fileType: file.type },
         });
         if (error) {
           const message = await getExtractPdfErrorMessage(error);
@@ -198,7 +198,7 @@ const ArticleForm = () => {
       }
 
       const { data, error } = await supabase.functions.invoke("extract-pdf", {
-        body: { pdfBase64: base64, fileName: form.title || "article.pdf", mode: "stats_q6_only" },
+        body: { pdfBase64: base64, fileName: form.title || "article.pdf", fileType: "application/pdf", mode: "stats_q6_only" },
       });
       if (error) {
         const message = await getExtractPdfErrorMessage(error);

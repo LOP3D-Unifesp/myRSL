@@ -9,7 +9,13 @@ type Message = { role: "user" | "assistant"; content: string };
 
 type ChatFunctionError = { message?: string };
 
-const PdfChatPanel = ({ pdfRef, articleTitle }: { pdfRef: string; articleTitle: string }) => {
+const PdfChatPanel = ({
+  articleId,
+  articleTitle,
+}: {
+  articleId: string;
+  articleTitle: string;
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +34,7 @@ const PdfChatPanel = ({ pdfRef, articleTitle }: { pdfRef: string; articleTitle: 
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("chat-with-pdf", {
-        body: { messages: newMsgs, pdfRef, articleTitle },
+        body: { messages: newMsgs, articleId, articleTitle },
       });
       if (error) throw error;
       setMessages((prev) => [...prev, { role: "assistant", content: data?.reply || "No response" }]);

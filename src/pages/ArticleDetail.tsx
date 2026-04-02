@@ -199,7 +199,7 @@ const ArticleDetail = () => {
               <div className="flex flex-col gap-2 h-full">
                 <iframe src={pdfAccessUrl ?? undefined} className="flex-1 w-full rounded-lg border" title="PDF Viewer" />
                 {showChat && article.pdf_url && (
-                  <PdfChatPanel pdfRef={article.pdf_url} articleTitle={article.title || article.author || "this paper"} />
+                  <PdfChatPanel articleId={article.id} articleTitle={article.title || article.author || "this paper"} />
                 )}
               </div>
             </div>

@@ -1,20 +1,19 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.25.76";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { assertBodySize, getClientIp, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
+import { decodeBase64ToBytes, hasPdfMagicBytes, sanitizePdfFileName } from "../_shared/pdf.ts";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const MAX_BASE64_CHARS = 24_000_000;
-const RATE_WINDOW_MS = 60_000;
+const MAX_EXTRACT_BODY_BYTES = 28_000_000;
 const RATE_LIMIT_PER_WINDOW = 10;
-const rateMap = new Map<string, { count: number; startedAt: number }>();
+const RATE_WINDOW_SECONDS = 60;
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 const requestSchema = z.object({
   pdfBase64: z.string().min(1).max(MAX_BASE64_CHARS),
+  fileType: z.string().min(1).max(100),
   fileName: z.string().min(1).max(256).optional().default("article.pdf"),
   mode: z.enum(["stats_q6_only"]).optional(),
 });
@@ -62,31 +61,10 @@ const extractedSchema = z
   })
   .passthrough();
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 function parseJsonFromModelResponse(content: string) {
   const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
   return JSON.parse(jsonStr);
-}
-
-function enforceRateLimit(userId: string) {
-  const now = Date.now();
-  const current = rateMap.get(userId);
-  if (!current || now - current.startedAt > RATE_WINDOW_MS) {
-    rateMap.set(userId, { count: 1, startedAt: now });
-    return;
-  }
-  if (current.count >= RATE_LIMIT_PER_WINDOW) {
-    throw new Error("Rate limit exceeded. Please wait before trying again.");
-  }
-  current.count += 1;
-  rateMap.set(userId, current);
 }
 
 async function getAuthenticatedUser(req: Request) {
@@ -94,7 +72,7 @@ async function getAuthenticatedUser(req: Request) {
   if (!authHeader) {
     throw new Response(JSON.stringify({ error: "Missing Authorization header." }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -112,7 +90,7 @@ async function getAuthenticatedUser(req: Request) {
   if (error || !data.user) {
     throw new Response(JSON.stringify({ error: "Invalid or expired token." }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
   return data.user;
@@ -147,29 +125,55 @@ Rules:
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!isOriginAllowed(req)) {
+    return jsonResponse(req, { error: "Origin not allowed." }, 403);
+  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   try {
+    assertBodySize(req, MAX_EXTRACT_BODY_BYTES);
     const user = await getAuthenticatedUser(req);
-    enforceRateLimit(user.id);
+    const clientIp = getClientIp(req);
+    const withinLimit = await enforceRateLimit({
+      endpoint: "extract-pdf",
+      userId: user.id,
+      ipAddress: clientIp,
+      limit: RATE_LIMIT_PER_WINDOW,
+      windowSeconds: RATE_WINDOW_SECONDS,
+    });
+    if (!withinLimit) {
+      return jsonResponse(req, { error: "Rate limit exceeded. Please wait before trying again." }, 429);
+    }
 
     const body = await req.json();
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success) {
-      return jsonResponse({ error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
+      return jsonResponse(req, { error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
     }
 
-    const { pdfBase64, fileName, mode } = parsed.data;
+    const { pdfBase64, fileName, fileType, mode } = parsed.data;
+    if (fileType.toLowerCase() !== "application/pdf") {
+      return jsonResponse(req, { error: "Invalid file MIME type. Expected application/pdf." }, 400);
+    }
+    const normalizedFileName = sanitizePdfFileName(fileName);
+    const pdfBytes = decodeBase64ToBytes(pdfBase64);
+    if (pdfBytes.byteLength > MAX_PDF_BYTES) {
+      return jsonResponse(req, { error: "PDF too large for extraction." }, 413);
+    }
+    if (!hasPdfMagicBytes(pdfBytes)) {
+      return jsonResponse(req, { error: "Invalid PDF file signature." }, 400);
+    }
+
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) {
-      return jsonResponse({ error: "GEMINI_API_KEY is not configured" }, 500);
+      return jsonResponse(req, { error: "GEMINI_API_KEY is not configured" }, 500);
     }
 
     const isSelectiveMode = mode === "stats_q6_only";
     const systemPrompt = buildPrompt(isSelectiveMode);
     const userMessage = isSelectiveMode
-      ? `Extract only inferential statistics and Q1-Q6 classification from this PDF: ${fileName}`
-      : `Extract structured data from this PDF: ${fileName}`;
+      ? `Extract only inferential statistics and Q1-Q6 classification from this PDF: ${normalizedFileName}`
+      : `Extract structured data from this PDF: ${normalizedFileName}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60_000);
@@ -198,39 +202,39 @@ serve(async (req) => {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      if (response.status === 429) return jsonResponse({ error: "Rate limit exceeded, please try again later." }, 429);
+      if (response.status === 429) return jsonResponse(req, { error: "Rate limit exceeded, please try again later." }, 429);
       if (response.status === 401 || response.status === 403) {
-        return jsonResponse({ error: "Gemini authorization/quota error. Verify key and billing." }, 403);
+        return jsonResponse(req, { error: "Gemini authorization/quota error. Verify key and billing." }, 403);
       }
       if (response.status === 404) {
-        return jsonResponse({ error: "Configured Gemini model is unavailable." }, 502);
+        return jsonResponse(req, { error: "Configured Gemini model is unavailable." }, 502);
       }
       const errorText = await response.text();
       console.error("Gemini API error:", response.status, errorText);
-      return jsonResponse({ error: "AI extraction failed." }, 502);
+      return jsonResponse(req, { error: "AI extraction failed." }, 502);
     }
 
     const aiData = await response.json();
     const content = aiData?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("\n").trim() ?? "";
-    if (!content) return jsonResponse({ error: "Empty response from model." }, 502);
+    if (!content) return jsonResponse(req, { error: "Empty response from model." }, 502);
 
     let extractedUnknown: unknown;
     try {
       extractedUnknown = parseJsonFromModelResponse(content);
     } catch {
       console.error("Failed to parse model output:", content);
-      return jsonResponse({ error: "Could not parse extracted data. Please try again." }, 502);
+      return jsonResponse(req, { error: "Could not parse extracted data. Please try again." }, 502);
     }
 
     const validated = extractedSchema.safeParse(extractedUnknown);
     if (!validated.success) {
-      return jsonResponse({ error: "Model output failed schema validation." }, 502);
+      return jsonResponse(req, { error: "Model output failed schema validation." }, 502);
     }
 
-    return jsonResponse({ extracted: validated.data });
+    return jsonResponse(req, { extracted: validated.data });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error("extract-pdf error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    return jsonResponse(req, { error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });

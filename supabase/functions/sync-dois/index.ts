@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.25.76";
+import { assertBodySize, getClientIp, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
+import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const MAX_SYNC_BODY_BYTES = 64_000;
+const RATE_LIMIT_PER_WINDOW = 5;
+const RATE_WINDOW_SECONDS = 60;
 
 const requestSchema = z.object({
   articleIds: z.array(z.string().uuid()).max(200).optional(),
@@ -18,19 +18,12 @@ type ArticleRow = {
   doi: string | null;
 };
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 async function getUserIdFromToken(req: Request): Promise<string> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     throw new Response(JSON.stringify({ error: "Missing Authorization header." }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
 
@@ -45,7 +38,7 @@ async function getUserIdFromToken(req: Request): Promise<string> {
   if (error || !data.user) {
     throw new Response(JSON.stringify({ error: "Invalid or expired token." }), {
       status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
   return data.user.id;
@@ -69,20 +62,36 @@ async function fetchDoiByTitle(title: string): Promise<string | null> {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (!isOriginAllowed(req)) {
+    return jsonResponse(req, { error: "Origin not allowed." }, 403);
+  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   try {
+    assertBodySize(req, MAX_SYNC_BODY_BYTES);
     const userId = await getUserIdFromToken(req);
+    const clientIp = getClientIp(req);
+    const withinLimit = await enforceRateLimit({
+      endpoint: "sync-dois",
+      userId,
+      ipAddress: clientIp,
+      limit: RATE_LIMIT_PER_WINDOW,
+      windowSeconds: RATE_WINDOW_SECONDS,
+    });
+    if (!withinLimit) {
+      return jsonResponse(req, { error: "Rate limit exceeded, please try again later." }, 429);
+    }
+
     const body = await req.json().catch(() => ({}));
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success) {
-      return jsonResponse({ error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
+      return jsonResponse(req, { error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured." }, 500);
+      return jsonResponse(req, { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." }, 500);
     }
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -101,7 +110,7 @@ serve(async (req) => {
     }
 
     const { data, error } = await query;
-    if (error) return jsonResponse({ error: "Could not fetch articles for DOI sync." }, 500);
+    if (error) return jsonResponse(req, { error: "Could not fetch articles for DOI sync." }, 500);
     const candidates = (data ?? []) as ArticleRow[];
 
     let updated = 0;
@@ -131,7 +140,7 @@ serve(async (req) => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
-    return jsonResponse({
+    return jsonResponse(req, {
       processed: candidates.length,
       updated,
       failed,
@@ -140,6 +149,6 @@ serve(async (req) => {
   } catch (error) {
     if (error instanceof Response) return error;
     console.error("sync-dois error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    return jsonResponse(req, { error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });

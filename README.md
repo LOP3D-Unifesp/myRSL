@@ -45,3 +45,10 @@ Depois do workflow concluir com sucesso, envie o link:
 
 - O `vite.config.ts` usa `base` de produção em `/data-extraction-rsl/` para funcionar no subpath do Pages.
 - O deploy gera `404.html` a partir de `index.html` para fallback de rotas SPA (refresh em `/articles/...`).
+
+## Seguranca (abril/2026)
+
+- `chat-with-pdf` agora exige `articleId` e valida ownership (`articles.user_id = auth.uid()`), bloqueando acesso cruzado entre usuarios.
+- As edge functions usam CORS com allowlist (`ALLOWED_ORIGINS` por variavel de ambiente; fallback para localhost + GitHub Pages).
+- Rate limit foi migrado para storage compartilhado (`public.edge_rate_limits` + `public.consume_edge_rate_limit`), removendo dependencia de `Map` em memoria.
+- Extracao de PDF valida MIME (`application/pdf`) e assinatura do arquivo (`%PDF-`) no backend.
