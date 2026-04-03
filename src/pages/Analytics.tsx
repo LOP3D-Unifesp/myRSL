@@ -1,4 +1,4 @@
-import { type ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchArticles } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -300,17 +300,18 @@ const Analytics = () => {
                   <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
                     <div className="space-y-3 rounded-md border border-border/70 bg-background/50 p-3">
                       <div className="min-h-[420px]">
-                        <WorldMap
-                          title="Studies by Country"
-                          size="responsive"
-                          data={geographyMapData.mapped}
-                          color="hsl(var(--chart-5))"
-                          backgroundColor="hsl(var(--muted))"
-                          tooltipBgColor="hsl(var(--popover))"
-                          tooltipTextColor="hsl(var(--popover-foreground))"
-                          strokeOpacity={0.2}
-                          richInteraction
-                        />
+                        <WorldMapErrorBoundary>
+                          <WorldMap
+                            title="Studies by Country"
+                            size="responsive"
+                            data={geographyMapData.mapped}
+                            color="hsl(var(--chart-5))"
+                            backgroundColor="hsl(var(--muted))"
+                            tooltipBgColor="hsl(var(--popover))"
+                            tooltipTextColor="hsl(var(--popover-foreground))"
+                            strokeOpacity={0.2}
+                          />
+                        </WorldMapErrorBoundary>
                       </div>
                     </div>
 
@@ -419,7 +420,7 @@ const Analytics = () => {
   );
 };
 
-const KpiCard = memo(function KpiCard({
+function KpiCard({
   icon,
   label,
   value,
@@ -457,9 +458,9 @@ const KpiCard = memo(function KpiCard({
       </CardContent>
     </Card>
   );
-});
+}
 
-const ChartCard = memo(function ChartCard({
+function ChartCard({
   title,
   subtitle,
   children,
@@ -487,9 +488,9 @@ const ChartCard = memo(function ChartCard({
       <CardContent>{children}</CardContent>
     </Card>
   );
-});
+}
 
-const VerticalBarChart = memo(function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[]; dataKey: string; xKey: string; color: string }) {
+function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[]; dataKey: string; xKey: string; color: string }) {
   return (
     <ChartContainer
       config={{
@@ -509,9 +510,9 @@ const VerticalBarChart = memo(function VerticalBarChart({ data, dataKey, xKey, c
       </BarChart>
     </ChartContainer>
   );
-});
+}
 
-const HorizontalRankChart = memo(function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barColor: string }) {
+function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barColor: string }) {
   return (
     <ChartContainer
       config={{
@@ -531,6 +532,41 @@ const HorizontalRankChart = memo(function HorizontalRankChart({ data, barColor }
       </BarChart>
     </ChartContainer>
   );
-});
+}
 
 export default Analytics;
+
+type WorldMapErrorBoundaryProps = {
+  children: ReactNode;
+};
+
+type WorldMapErrorBoundaryState = {
+  hasError: boolean;
+};
+
+class WorldMapErrorBoundary extends Component<WorldMapErrorBoundaryProps, WorldMapErrorBoundaryState> {
+  constructor(props: WorldMapErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("WorldMap rendering failed", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex h-[420px] items-center justify-center rounded-md border border-dashed border-border/70 bg-background/50 px-4 text-center text-sm text-muted-foreground">
+          Map unavailable on this browser. Country counts are still listed on the right.
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
