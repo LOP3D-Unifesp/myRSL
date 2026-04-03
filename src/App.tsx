@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { AuthUserIdProvider } from "@/contexts/auth-user-id";
+import AuthQuerySync from "@/components/AuthQuerySync";
 import Auth from "./pages/Auth";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
@@ -39,7 +41,11 @@ function ProtectedRoutes() {
 
   if (!session) return <Navigate to="/auth" replace />;
 
-  return <AppLayout />;
+  return (
+    <AuthUserIdProvider userId={session.user.id}>
+      <AppLayout />
+    </AuthUserIdProvider>
+  );
 }
 
 function AuthRoute() {
@@ -51,6 +57,7 @@ function AuthRoute() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <AuthQuerySync />
     <TooltipProvider>
       <Toaster />
       <Sonner />

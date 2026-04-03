@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-const optionalString = z.string().max(5000).nullable().optional();
-const optionalShortString = z.string().max(500).nullable().optional();
+const optionalString = z.string().max(10000).nullable().optional();
+const optionalShortString = z.string().max(2000).nullable().optional();
 const optionalStringArray = z.array(z.string().max(200)).max(50).nullable().optional();
 
 export const articleWriteSchema = z.object({

@@ -1,21 +1,20 @@
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchArticleSummaries, syncCurrentUserDoiMetadata, type ArticleListItem } from "@/lib/articles";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchArticleSummaries, type ArticleListItem } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
 import { isFullyVerified } from "@/lib/article-verification";
-import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
-import { buildCountryFrequencyMap } from "@/lib/country-normalization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Users, Beaker, RefreshCw, PlusCircle, type LucideIcon, LayoutDashboard, ShieldCheck, ArrowRight, Clock3 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { FileText, Users, Beaker, PlusCircle, type LucideIcon, LayoutDashboard, ShieldCheck, ArrowRight, Clock3 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 import DashboardSection from "@/components/layout/DashboardSection";
 import { StatusBadge } from "@/components/article/StatusBadge";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 type QueueItem = {
   article: ArticleListItem;
@@ -79,24 +78,18 @@ function getQueueSecondaryText(article: ArticleListItem): string {
 }
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [syncing, setSyncing] = useState(false);
-
+  const userId = useAuthUserId();
   const { data: articles = [], isLoading } = useQuery({
-    queryKey: ["articles"],
+    queryKey: articleKeys.all(userId),
     queryFn: fetchArticleSummaries,
+    enabled: Boolean(userId),
   });
 
-  const { totalArticles, draftCount, pendingVerificationCount, uniqueCountries, avgYear } = useMemo(() => {
-    const draftCount = articles.filter((a) => a.is_draft).length;
+  const { totalArticles, peer1ReviewedCount, peer2ReviewedCount, pendingVerificationCount } = useMemo(() => {
+    const peer1ReviewedCount = articles.filter((a) => !a.is_draft && Boolean(a.verify_peer1)).length;
+    const peer2ReviewedCount = articles.filter((a) => !a.is_draft && Boolean(a.verify_peer2)).length;
     const pendingVerificationCount = articles.filter((a) => !a.is_draft && !isFullyVerified(a)).length;
-    const uniqueCountries = Object.keys(buildCountryFrequencyMap(articles)).length;
-    const validYearRows = articles.filter((a) => a.year != null);
-    const avgYear = validYearRows.length
-      ? Math.round(validYearRows.reduce((sum, article) => sum + (article.year ?? 0), 0) / validYearRows.length)
-      : 0;
-    return { totalArticles: articles.length, draftCount, pendingVerificationCount, uniqueCountries, avgYear };
+    return { totalArticles: articles.length, peer1ReviewedCount, peer2ReviewedCount, pendingVerificationCount };
   }, [articles]);
 
   const workQueue = useMemo(() => {
@@ -111,56 +104,6 @@ const Dashboard = () => {
       .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime())
       .slice(0, 6);
   }, [articles]);
-
-  const handleSyncDois = async () => {
-    setSyncing(true);
-    try {
-      const eligibleIds = articles.filter((a) => a.title).map((a) => a.id);
-      if (eligibleIds.length === 0) {
-        toast.info("No eligible articles found for metadata sync.");
-        return;
-      }
-
-      toast.info(`Syncing DOI metadata for up to ${eligibleIds.length} article(s)...`);
-      const data = await syncCurrentUserDoiMetadata({
-        articleIds: eligibleIds,
-        includeAbstract: true,
-      });
-
-      const updated = data.summary.updated_safe;
-      const unchanged = data.summary.unchanged;
-      const missingSource = data.summary.missing_source;
-      const failed = data.summary.failed;
-      const conflictFields = data.summary.conflict_fields;
-      const conflictArticles = data.summary.conflict_articles;
-
-      const summary = [`${updated} updated`];
-      if (unchanged > 0) summary.push(`${unchanged} unchanged`);
-      if (missingSource > 0) summary.push(`${missingSource} missing source`);
-      if (failed > 0) summary.push(`${failed} failed`);
-      if (conflictFields > 0) summary.push(`${conflictFields} conflicts`);
-      toast.success(`DOI metadata sync complete: ${summary.join(", ")}`);
-
-      if (data.conflictQueue.length > 0) {
-        saveDoiConflictReviewState({
-          createdAt: new Date().toISOString(),
-          summary: data.summary,
-          queue: data.conflictQueue,
-          currentIndex: 0,
-          started: false,
-        });
-        toast.info(`${conflictArticles} article(s) need manual review. Opening DOI Review...`);
-        navigate("/doi-sync/review");
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["articles"] });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "DOI metadata sync failed";
-      toast.error(message);
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   if (isLoading) {
     return <PageState title="Loading dashboard..." description="Gathering your latest article metrics." />;
@@ -210,10 +153,6 @@ const Dashboard = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> New Article
               </Link>
             </Button>
-            <Button variant="outline" onClick={handleSyncDois} disabled={syncing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing DOI..." : "Sync DOI Metadata"}
-            </Button>
           </>
         }
       />
@@ -229,9 +168,9 @@ const Dashboard = () => {
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={FileText} label="Total Articles" value={totalArticles} helper="All records" tone="default" to="/articles" />
-          <StatCard icon={Beaker} label="Drafts" value={draftCount} helper={draftCount > 0 ? "Need completion" : "No pending drafts"} tone={draftCount > 0 ? "warning" : "default"} to="/articles?status=draft" />
+          <StatCard icon={Beaker} label="Peer 1 Reviewed" value={peer1ReviewedCount} helper={peer1ReviewedCount > 0 ? "Reviewed by Peer 1" : "No Peer 1 reviews yet"} tone={peer1ReviewedCount > 0 ? "success" : "default"} to="/verifications?filters=verify_peer1" />
+          <StatCard icon={Users} label="Peer 2 Reviewed" value={peer2ReviewedCount} helper={peer2ReviewedCount > 0 ? "Reviewed by Peer 2" : "No Peer 2 reviews yet"} tone={peer2ReviewedCount > 0 ? "success" : "default"} to="/verifications?filters=verify_peer2" />
           <StatCard icon={ShieldCheck} label="Pending Verification" value={pendingVerificationCount} helper={pendingVerificationCount > 0 ? "Needs review" : "All verified"} tone={pendingVerificationCount > 0 ? "warning" : "success"} to="/verifications" />
-          <StatCard icon={Users} label="Countries" value={uniqueCountries} helper={avgYear ? `Avg. Year ${avgYear}` : "Year not available"} tone="default" to="/analytics" />
         </div>
       </DashboardSection>
 

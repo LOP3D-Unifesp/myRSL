@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchArticle, updateArticle, type ArticleInsert } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
@@ -22,8 +23,10 @@ import ArticleReviewEditorPanel from "@/components/article/ArticleReviewEditorPa
 import { ArticleDetailHeader } from "@/components/article/ArticleDetailHeader";
 import { ArticleDetailToolbar } from "@/components/article/ArticleDetailToolbar";
 import { PdfViewerDialog } from "@/components/article/PdfViewerDialog";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const ArticleDetail = () => {
+  const userId = useAuthUserId();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,13 +48,14 @@ const ArticleDetail = () => {
   const { leftPanePercent, setLeftPanePercent, isDraggingSplit, setIsDraggingSplit } = useSplitPaneDrag(desktopPanelOpen, splitContainerRef);
 
   const { data: article, isLoading } = useQuery({
-    queryKey: ["article", id],
+    queryKey: articleKeys.detail(userId, id),
     queryFn: () => fetchArticle(id!),
+    enabled: Boolean(id && userId),
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["article", id] });
-    queryClient.invalidateQueries({ queryKey: ["articles"] });
+    queryClient.invalidateQueries({ queryKey: articleKeys.detail(userId, id) });
+    queryClient.invalidateQueries({ queryKey: articleKeys.all(userId) });
   };
 
   useEffect(() => {

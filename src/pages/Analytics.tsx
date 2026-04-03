@@ -1,6 +1,7 @@
 import { Component, Suspense, lazy, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchArticles } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, BarChart3, Files, Globe2, CalendarRange, Baby, ArrowRight } from "lucide-react";
@@ -14,6 +15,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { buildFrequency, buildFrequencyFromNested, topNWithOthers } from "@/lib/analytics-utils";
 import { cn } from "@/lib/utils";
 import { ChartCard } from "@/components/analytics/ChartCard";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const OverviewSection = lazy(() => import("@/components/analytics/sections/OverviewSection"));
 const PediatricSection = lazy(() => import("@/components/analytics/sections/PediatricSection"));
@@ -66,13 +68,15 @@ function SectionLoader() {
 }
 
 const Analytics = () => {
+  const userId = useAuthUserId();
   const [search, setSearch] = useState("");
   const [openSections, setOpenSections] = useState<string[]>([ANALYTICS_SECTIONS.cross, ANALYTICS_SECTIONS.overview]);
   const [highlightedTarget, setHighlightedTarget] = useState<string | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
   const { data: articles = [], isLoading } = useQuery({
-    queryKey: ["articles"],
+    queryKey: articleKeys.all(userId),
     queryFn: fetchArticles,
+    enabled: Boolean(userId),
   });
 
   const filtered = useMemo(() => {

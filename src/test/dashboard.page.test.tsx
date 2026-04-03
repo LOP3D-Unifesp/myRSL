@@ -104,10 +104,22 @@ describe("Dashboard", () => {
     expect(snapshotSection?.compareDocumentPosition(queueSection as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(queueSection?.compareDocumentPosition(recentSection as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    expect(screen.getByRole("link", { name: /Total Articles/i })).toHaveAttribute("href", "/articles");
-    expect(screen.getByRole("link", { name: /Pending Verification/i })).toHaveAttribute("href", "/verifications");
-    const countriesCard = screen.getByRole("link", { name: /Countries/i });
-    expect(within(countriesCard).getByText("5")).toBeInTheDocument();
+    const totalCard = screen.getByRole("link", { name: /Total Articles/i });
+    const peer1Card = screen.getByRole("link", { name: /Peer 1/i });
+    const peer2Card = screen.getByRole("link", { name: /Peer 2/i });
+    const pendingCard = screen.getByRole("link", { name: /Pending Verification/i });
+
+    expect(totalCard).toHaveAttribute("href", "/articles");
+    expect(peer1Card).toHaveAttribute("href", "/verifications?filters=verify_peer1");
+    expect(peer2Card).toHaveAttribute("href", "/verifications?filters=verify_peer2");
+    expect(pendingCard).toHaveAttribute("href", "/verifications");
+
+    expect(within(peer1Card).getByText("3")).toBeInTheDocument();
+    expect(within(peer2Card).getByText("2")).toBeInTheDocument();
+
+    expect(totalCard.compareDocumentPosition(peer1Card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(peer1Card.compareDocumentPosition(peer2Card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(peer2Card.compareDocumentPosition(pendingCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("prioritizes draft and pending actions before verified items in queue", () => {

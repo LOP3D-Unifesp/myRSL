@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchVerificationSummaries, type VerificationListItem } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
 import { VERIFICATION_STAGES, parseVerificationFilters, serializeVerificationFilters, type VerificationKey } from "@/lib/article-verification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { CheckCircle, ShieldCheck } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const FILTERS = VERIFICATION_STAGES.map(({ key, label }) => ({ key, label }));
 type FilterKey = VerificationKey;
@@ -23,13 +25,15 @@ function areSetsEqual(a: Set<FilterKey>, b: Set<FilterKey>): boolean {
 }
 
 const Verifications = () => {
+  const userId = useAuthUserId();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selected, setSelected] = useState<Set<FilterKey>>(() => parseVerificationFilters(searchParams.get("filters")));
   const { data: articles = [], isLoading } = useQuery({
-    queryKey: ["articles"],
+    queryKey: articleKeys.all(userId),
     queryFn: fetchVerificationSummaries,
+    enabled: Boolean(userId),
   });
 
   useEffect(() => {

@@ -2,13 +2,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchArticlesPage,
+  fetchArticleSummaries,
   fetchFilterOptions,
   deleteArticle,
   exportCurrentUserArticlesToExcel,
+  syncCurrentUserDoiMetadata,
   type ArticleListItem,
   type ArticleListSort,
   type ArticleListStatus,
 } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
+import {
+  executeArticlesExcelImport,
+  previewArticlesExcelImport,
+  type ImportExecutionMode,
+  type ImportPreview,
+} from "@/lib/articles-import";
 import { formatCompactAuthors } from "@/lib/article-authors";
 import {
   VERIFICATION_STAGES,
@@ -23,13 +32,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Search, Pencil, Trash2, FileText, ChevronLeft, ChevronRight, Download, CheckCircle, SlidersHorizontal } from "lucide-react";
+import { PlusCircle, Search, Pencil, Trash2, FileText, ChevronLeft, ChevronRight, Download, CheckCircle, SlidersHorizontal, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 import { StatusBadge } from "@/components/article/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const PAGE_SIZE = 20;
 const VERIFICATION_FILTERS = VERIFICATION_STAGES.map(({ key, label }) => ({ key, label }));
@@ -42,6 +54,18 @@ const STATUS_FILTERS: Array<{ key: ArticleListStatus; label: string }> = [
 const qaOptions = ["all", "0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"];
 
 type VerificationFilterKey = VerificationKey;
+
+function formatDoiSyncError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "DOI metadata sync failed";
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("rate limit") || normalized.includes("429")) {
+    return "DOI sync is temporarily rate-limited. Please wait a minute and try again.";
+  }
+  if (normalized.includes("failed to fetch") || normalized.includes("network")) {
+    return "Unable to reach DOI sync service right now. Please try again in a moment.";
+  }
+  return raw;
+}
 
 function parsePositiveInt(value: string | null, fallback = 1): number {
   const parsed = Number(value);
@@ -70,7 +94,23 @@ function parseYearParam(value: string | null): string {
   return Number.isFinite(parsed) ? String(Math.trunc(parsed)) : "all";
 }
 
+function summarizeImportResult(result: {
+  imported: number;
+  skippedDuplicates: number;
+  invalid: number;
+  failed: number;
+}): string {
+  const parts = [
+    `${result.imported} imported`,
+    `${result.skippedDuplicates} skipped as duplicates`,
+    `${result.invalid} invalid`,
+    `${result.failed} failed`,
+  ];
+  return parts.join(", ");
+}
+
 const ArticlesList = () => {
+  const userId = useAuthUserId();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -90,6 +130,11 @@ const ArticlesList = () => {
   const [search, setSearch] = useState(initialQ);
   const [page, setPage] = useState(initialPage);
   const [exporting, setExporting] = useState(false);
+  const [previewingImport, setPreviewingImport] = useState(false);
+  const [executingImport, setExecutingImport] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [country, setCountry] = useState(initialCountry);
   const [yearFrom, setYearFrom] = useState(initialYearFrom);
   const [yearTo, setYearTo] = useState(initialYearTo);
@@ -148,13 +193,15 @@ const ArticlesList = () => {
   }, [country, page, qaMin, search, sort, status, verificationFilters, yearFrom, yearTo]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["articles", "page", queryParams],
+    queryKey: articleKeys.page(userId, queryParams),
     queryFn: () => fetchArticlesPage(queryParams),
+    enabled: Boolean(userId),
   });
 
   const { data: filterOptions = [] } = useQuery({
-    queryKey: ["articles", "filters-options"],
+    queryKey: articleKeys.filterOptions(userId),
     queryFn: fetchFilterOptions,
+    enabled: Boolean(userId),
   });
 
   const articles = data?.data ?? [];
@@ -182,13 +229,14 @@ const ArticlesList = () => {
     + (qaMin !== "all" ? 1 : 0);
 
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleDelete = (id: string) => {
     const timer = setTimeout(async () => {
       pendingDeletes.current.delete(id);
       try {
         await deleteArticle(id);
-        queryClient.invalidateQueries({ queryKey: ["articles"] });
+        queryClient.invalidateQueries({ queryKey: articleKeys.all(userId) });
       } catch {
         toast.error("Error deleting article");
       }
@@ -223,6 +271,108 @@ const ArticlesList = () => {
     }
   };
 
+  const openImportPicker = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setPreviewingImport(true);
+    try {
+      const preview = await previewArticlesExcelImport(file);
+      setImportPreview(preview);
+      setImportDialogOpen(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to preview Excel import.";
+      toast.error(message);
+      setImportPreview(null);
+      setImportDialogOpen(false);
+    } finally {
+      setPreviewingImport(false);
+    }
+  };
+
+  const runExcelImport = async (mode: ImportExecutionMode) => {
+    if (!importPreview) return;
+    setExecutingImport(true);
+    try {
+      const result = await executeArticlesExcelImport(importPreview, mode);
+      toast.success(`Import complete: ${summarizeImportResult(result)}`);
+      if (result.failed > 0) {
+        const firstFailures = result.failures
+          .slice(0, 3)
+          .map((failure) => `row ${failure.rowNumber}: ${failure.message}`)
+          .join(" | ");
+        toast.error(`Some rows failed (${result.failed}). ${firstFailures}`);
+      }
+      setImportDialogOpen(false);
+      setImportPreview(null);
+      queryClient.invalidateQueries({ queryKey: articleKeys.all(userId) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to import articles.";
+      toast.error(message);
+    } finally {
+      setExecutingImport(false);
+    }
+  };
+
+  const handleSyncDois = async () => {
+    setSyncing(true);
+    try {
+      const allArticles = await queryClient.fetchQuery({
+        queryKey: articleKeys.all(userId),
+        queryFn: fetchArticleSummaries,
+      });
+
+      const eligibleIds = (allArticles ?? []).filter((a) => a.title).map((a) => a.id);
+      if (eligibleIds.length === 0) {
+        toast.info("No eligible articles found for metadata sync.");
+        return;
+      }
+
+      toast.info(`Syncing DOI metadata for up to ${eligibleIds.length} article(s)...`);
+      const data = await syncCurrentUserDoiMetadata({
+        articleIds: eligibleIds,
+        includeAbstract: true,
+      });
+
+      const updated = data.summary.updated_safe;
+      const unchanged = data.summary.unchanged;
+      const missingSource = data.summary.missing_source;
+      const failed = data.summary.failed;
+      const conflictFields = data.summary.conflict_fields;
+      const conflictArticles = data.summary.conflict_articles;
+
+      const summary = [`${updated} updated`];
+      if (unchanged > 0) summary.push(`${unchanged} unchanged`);
+      if (missingSource > 0) summary.push(`${missingSource} missing source`);
+      if (failed > 0) summary.push(`${failed} failed`);
+      if (conflictFields > 0) summary.push(`${conflictFields} conflicts`);
+      toast.success(`DOI metadata sync complete: ${summary.join(", ")}`);
+
+      if (data.conflictQueue.length > 0) {
+        saveDoiConflictReviewState({
+          createdAt: new Date().toISOString(),
+          summary: data.summary,
+          queue: data.conflictQueue,
+          currentIndex: 0,
+          started: false,
+        });
+        toast.info(`${conflictArticles} article(s) need manual review. Opening DOI Review...`);
+        navigate("/doi-sync/review");
+      }
+
+      queryClient.invalidateQueries({ queryKey: articleKeys.all(userId) });
+    } catch (error) {
+      toast.error(formatDoiSyncError(error));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const clearFilters = () => {
     setCountry("all");
     setYearFrom("all");
@@ -251,9 +401,17 @@ const ArticlesList = () => {
         subtitle="Curated catalog for triage, review, and daily operations."
         actions={
           <>
+            <Button variant="outline" onClick={handleSyncDois} disabled={syncing}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing DOI..." : "Sync DOI Metadata"}
+            </Button>
             <Button variant="outline" onClick={handleExportExcel} disabled={exporting}>
               <Download className="mr-2 h-4 w-4" />
               {exporting ? "Exporting..." : "Export Excel"}
+            </Button>
+            <Button variant="outline" onClick={openImportPicker} disabled={previewingImport || executingImport}>
+              <Upload className="mr-2 h-4 w-4" />
+              {previewingImport ? "Analyzing..." : "Import Excel"}
             </Button>
             <Button asChild>
               <Link to="/articles/new">
@@ -262,6 +420,14 @@ const ArticlesList = () => {
             </Button>
           </>
         }
+      />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={handleImportInputChange}
+        aria-label="Import Excel file"
       />
 
       <div className="rounded-xl border border-border/70 bg-card/70 p-3 shadow-sm sm:p-4">
@@ -454,6 +620,89 @@ const ArticlesList = () => {
           </div>
         </>
       )}
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Excel</DialogTitle>
+            <DialogDescription>
+              {importPreview
+                ? `Review pre-validation for ${importPreview.fileName} before importing.`
+                : "Review the pre-validation report before importing."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {importPreview ? (
+            <div className="space-y-4 text-sm">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded border p-2">Rows in file: <strong>{importPreview.totalRows}</strong></div>
+                <div className="rounded border p-2">Valid rows: <strong>{importPreview.validRows.length}</strong></div>
+                <div className="rounded border p-2">Possible duplicates: <strong>{importPreview.possibleDuplicateRows.length}</strong></div>
+                <div className="rounded border p-2">Duplicates in file: <strong>{importPreview.duplicateInFileRows.length}</strong></div>
+                <div className="rounded border p-2 sm:col-span-2">Invalid rows: <strong>{importPreview.invalidRows.length}</strong></div>
+              </div>
+
+              {importPreview.possibleDuplicateRows.length > 0 ? (
+                <div className="rounded border p-3">
+                  <p className="font-medium">Possible duplicates in current account (sample)</p>
+                  <ul className="mt-2 space-y-1 text-muted-foreground">
+                    {importPreview.possibleDuplicateRows.slice(0, 5).map((row) => (
+                      <li key={`possible-dup-${row.rowNumber}`}>
+                        Row {row.rowNumber}: {row.duplicateField} = {row.duplicateValue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {importPreview.duplicateInFileRows.length > 0 ? (
+                <div className="rounded border p-3">
+                  <p className="font-medium">Duplicates inside this file (sample)</p>
+                  <ul className="mt-2 space-y-1 text-muted-foreground">
+                    {importPreview.duplicateInFileRows.slice(0, 5).map((row) => (
+                      <li key={`file-dup-${row.rowNumber}`}>
+                        Row {row.rowNumber}: {row.duplicateField} = {row.duplicateValue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {importPreview.invalidRows.length > 0 ? (
+                <div className="rounded border p-3">
+                  <p className="font-medium">Invalid rows (sample)</p>
+                  <ul className="mt-2 space-y-1 text-muted-foreground">
+                    {importPreview.invalidRows.slice(0, 5).map((row) => (
+                      <li key={`invalid-${row.rowNumber}`}>
+                        Row {row.rowNumber}: {row.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={executingImport}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => runExcelImport("import_all_duplicates")}
+              disabled={!importPreview || executingImport}
+            >
+              {executingImport ? "Importing..." : "Import All"}
+            </Button>
+            <Button
+              onClick={() => runExcelImport("skip_duplicates")}
+              disabled={!importPreview || executingImport}
+            >
+              {executingImport ? "Importing..." : "Import Without Duplicates"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

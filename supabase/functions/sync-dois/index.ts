@@ -7,14 +7,19 @@ import { enforceRateLimit } from "../_shared/rate-limit.ts";
 const MAX_SYNC_BODY_BYTES = 64_000;
 const RATE_LIMIT_PER_WINDOW = 5;
 const RATE_WINDOW_SECONDS = 60;
+const CROSSREF_TIMEOUT_MS = 10_000;
+const CROSSREF_MAX_ATTEMPTS = 3;
+const CROSSREF_BASE_BACKOFF_MS = 700;
 
 const requestSchema = z.object({
   articleIds: z.array(z.string().uuid()).max(200).optional(),
   includeAbstract: z.boolean().optional().default(true),
+  limit: z.number().int().min(1).max(200).optional().default(200),
 });
 
 type ArticleRow = {
   id: string;
+  study_id: string | null;
   title: string | null;
   doi: string | null;
   year: number | null;
@@ -45,6 +50,27 @@ type ConflictItem = {
 
 const MAX_CONFLICTS_RETURNED = 100;
 
+type ReviewSnapshot = {
+  doi: string | null;
+  title: string | null;
+  year: number | null;
+  author: string | null;
+  first_author: string | null;
+  last_author: string | null;
+  abstract: string | null;
+};
+
+type ConflictArticleItem = {
+  articleId: string;
+  studyId: string | null;
+  doiCurrent: string | null;
+  doiSuggested: string | null;
+  titleCurrent: string | null;
+  current: ReviewSnapshot;
+  suggested: ReviewSnapshot;
+  fields: ConflictItem[];
+};
+
 async function getUserIdFromToken(req: Request): Promise<string> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
@@ -72,36 +98,62 @@ async function getUserIdFromToken(req: Request): Promise<string> {
 }
 
 async function fetchDoiByTitle(title: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
-  const response = await fetch(
+  const data = await fetchCrossrefJsonWithRetry(
     `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(title)}&rows=1`,
-    {
-      headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
-      signal: controller.signal,
-    },
   );
-  clearTimeout(timeoutId);
-  if (!response.ok) return null;
-  const data = await response.json();
+  if (!data) return null;
   const doi = data?.message?.items?.[0]?.DOI;
   return typeof doi === "string" && doi.length > 0 ? doi : null;
 }
 
 async function fetchCrossrefWorkByDoi(doi: string): Promise<CrossrefWork | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
-  const response = await fetch(
-    `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
-    {
-      headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
-      signal: controller.signal,
-    },
-  );
-  clearTimeout(timeoutId);
-  if (!response.ok) return null;
-  const data = await response.json();
+  const data = await fetchCrossrefJsonWithRetry(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+  if (!data) return null;
   return (data?.message ?? null) as CrossrefWork | null;
+}
+
+function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const asSeconds = Number(value);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) return Math.round(asSeconds * 1000);
+  const asDate = Date.parse(value);
+  if (!Number.isNaN(asDate)) {
+    const delta = asDate - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+  return null;
+}
+
+function shouldRetryStatus(status: number): boolean {
+  return status === 429 || status === 408 || (status >= 500 && status <= 599);
+}
+
+async function fetchCrossrefJsonWithRetry(url: string): Promise<any | null> {
+  for (let attempt = 1; attempt <= CROSSREF_MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CROSSREF_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
+        signal: controller.signal,
+      });
+
+      if (response.ok) return await response.json();
+      if (!shouldRetryStatus(response.status) || attempt === CROSSREF_MAX_ATTEMPTS) return null;
+
+      const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+      const backoffMs = retryAfterMs ?? Math.round(CROSSREF_BASE_BACKOFF_MS * (2 ** (attempt - 1)));
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    } catch (error) {
+      if (attempt === CROSSREF_MAX_ATTEMPTS) return null;
+      const backoffMs = Math.round(CROSSREF_BASE_BACKOFF_MS * (2 ** (attempt - 1)));
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      if (error instanceof DOMException && error.name === "AbortError") continue;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+  return null;
 }
 
 function isBlank(value: string | null | undefined): boolean {
@@ -238,13 +290,14 @@ serve(async (req) => {
     }
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    const limit = parsed.data.limit ?? 200;
     let query = adminClient
       .from("articles")
-      .select("id,title,doi,year,author,first_author,last_author,abstract")
+      .select("id,study_id,title,doi,year,author,first_author,last_author,abstract")
       .eq("user_id", userId)
       .or("doi.not.is.null,title.not.is.null")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(limit);
 
     const ids = parsed.data.articleIds;
     const includeAbstract = parsed.data.includeAbstract ?? true;
@@ -261,6 +314,7 @@ serve(async (req) => {
     let failed = 0;
     let missingSource = 0;
     const conflicts: ConflictItem[] = [];
+    const conflictQueue: ConflictArticleItem[] = [];
 
     for (const article of candidates) {
       try {
@@ -280,18 +334,57 @@ serve(async (req) => {
           continue;
         }
 
-        const updatePayload: Record<string, string | number> = {};
+        const currentSnapshot: ReviewSnapshot = {
+          doi: article.doi,
+          title: article.title,
+          year: article.year,
+          author: article.author,
+          first_author: article.first_author,
+          last_author: article.last_author,
+          abstract: article.abstract,
+        };
+        const suggestedSnapshot: ReviewSnapshot = {
+          doi: resolvedDoi ?? null,
+          title: work.title?.[0] ?? null,
+          year: extractYearFromWork(work),
+          author: null,
+          first_author: null,
+          last_author: null,
+          abstract: includeAbstract ? cleanAbstract(work.abstract) : null,
+        };
 
-        maybeSetField(article.id, "doi", article.doi, resolvedDoi, updatePayload, conflicts);
-        maybeSetField(article.id, "title", article.title, work.title?.[0] ?? null, updatePayload, conflicts);
-        maybeSetField(article.id, "year", article.year, extractYearFromWork(work), updatePayload, conflicts);
+        const updatePayload: Record<string, string | number> = {};
+        const articleConflicts: ConflictItem[] = [];
+
+        maybeSetField(article.id, "doi", article.doi, suggestedSnapshot.doi, updatePayload, articleConflicts);
+        maybeSetField(article.id, "title", article.title, suggestedSnapshot.title, updatePayload, articleConflicts);
+        maybeSetField(article.id, "year", article.year, suggestedSnapshot.year, updatePayload, articleConflicts);
 
         const parsedAuthors = parseAuthors(work);
-        maybeSetField(article.id, "author", article.author, parsedAuthors.author, updatePayload, conflicts);
-        maybeSetField(article.id, "first_author", article.first_author, parsedAuthors.firstAuthor, updatePayload, conflicts);
-        maybeSetField(article.id, "last_author", article.last_author, parsedAuthors.lastAuthor, updatePayload, conflicts);
+        suggestedSnapshot.author = parsedAuthors.author;
+        suggestedSnapshot.first_author = parsedAuthors.firstAuthor;
+        suggestedSnapshot.last_author = parsedAuthors.lastAuthor;
+        maybeSetField(article.id, "author", article.author, suggestedSnapshot.author, updatePayload, articleConflicts);
+        maybeSetField(article.id, "first_author", article.first_author, suggestedSnapshot.first_author, updatePayload, articleConflicts);
+        maybeSetField(article.id, "last_author", article.last_author, suggestedSnapshot.last_author, updatePayload, articleConflicts);
         if (includeAbstract) {
-          maybeSetField(article.id, "abstract", article.abstract, cleanAbstract(work.abstract), updatePayload, conflicts);
+          maybeSetField(article.id, "abstract", article.abstract, suggestedSnapshot.abstract, updatePayload, articleConflicts);
+        }
+
+        if (articleConflicts.length > 0) {
+          conflictQueue.push({
+            articleId: article.id,
+            studyId: article.study_id,
+            doiCurrent: article.doi,
+            doiSuggested: suggestedSnapshot.doi,
+            titleCurrent: article.title,
+            current: currentSnapshot,
+            suggested: suggestedSnapshot,
+            fields: articleConflicts,
+          });
+          for (const conflict of articleConflicts) {
+            if (conflicts.length < MAX_CONFLICTS_RETURNED) conflicts.push(conflict);
+          }
         }
 
         if (Object.keys(updatePayload).length === 0) {
@@ -311,13 +404,27 @@ serve(async (req) => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
+    const summary = {
+      processed: candidates.length,
+      updated_safe: updated,
+      unchanged,
+      missing_source: missingSource,
+      failed,
+      conflict_articles: conflictQueue.length,
+      conflict_fields: conflictQueue.reduce((total, item) => total + item.fields.length, 0),
+    };
+
     return jsonResponse(req, {
+      summary,
+      conflictQueue,
       processed: candidates.length,
       updated,
       unchanged,
       missing_source: missingSource,
       failed,
-      conflicts_count: conflicts.length,
+      conflict_articles: summary.conflict_articles,
+      conflict_fields: summary.conflict_fields,
+      conflicts_count: summary.conflict_fields,
       conflicts,
     });
   } catch (error) {

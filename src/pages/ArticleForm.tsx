@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { createArticle, updateArticle, fetchArticle, type ArticleInsert } from "@/lib/articles";
+import { articleKeys } from "@/lib/article-query-keys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ import {
   ALL_RESEARCH_QUESTIONS, STATISTICAL_TESTS_PERFORMED, HAS_PEDIATRIC_PARTICIPANTS,
 } from "@/lib/constants";
 import PageHeader from "@/components/layout/PageHeader";
+import { useAuthUserId } from "@/contexts/auth-user-id";
 
 type FormData = Partial<ArticleInsert>;
 type ExtractFunctionError = { message?: string; context?: Response };
@@ -44,6 +46,7 @@ function deriveFirstAuthorFromAuthors(authors: string | null | undefined): strin
 }
 
 const ArticleForm = () => {
+  const userId = useAuthUserId();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
@@ -64,9 +67,9 @@ const ArticleForm = () => {
   });
 
   const { data: existing } = useQuery({
-    queryKey: ["article", id],
+    queryKey: articleKeys.detail(userId, id),
     queryFn: () => fetchArticle(id!),
-    enabled: isEditing,
+    enabled: isEditing && Boolean(userId),
   });
 
   useEffect(() => {
