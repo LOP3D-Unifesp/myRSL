@@ -188,7 +188,7 @@ const ArticleDetail = () => {
               {article.country ? <Badge variant="secondary">{article.country}</Badge> : null}
             </div>
             <h1 className="text-2xl font-bold text-foreground md:text-3xl">{article.title || "Untitled article"}</h1>
-            <p className="text-sm text-muted-foreground">{authorLabel}</p>
+            <p className="text-base text-muted-foreground">{authorLabel}</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -215,7 +215,7 @@ const ArticleDetail = () => {
           <Card className="border-border/70 bg-background/70">
             <CardContent className="space-y-3 py-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">Review Verification</p>
+                <p className="text-base font-medium">Review Verification</p>
                 <Badge variant="outline">{verificationProgress}/4 complete</Badge>
               </div>
               <VerificationToggles
@@ -233,7 +233,7 @@ const ArticleDetail = () => {
           <Card className="border-border/70 bg-background/70">
             <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium">Quality Assessment</p>
+                <p className="text-base font-medium">Quality Assessment</p>
                 <p className={`text-xl font-semibold ${qaTone}`}>{qaScore} / 10</p>
               </div>
               <Button size="sm" onClick={handleSaveQA} disabled={qaSaving}>
@@ -309,7 +309,7 @@ const ArticleDetail = () => {
                 <CardContent className="space-y-2 py-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">{question.label}</p>
-                    <p className="text-xs text-muted-foreground">{question.description}</p>
+                    <p className="text-sm text-muted-foreground">{question.description}</p>
                   </div>
                   <RadioGroup
                     value={qaAnswers[question.key] ?? ""}
@@ -397,7 +397,7 @@ const ArticleDetail = () => {
 function DetailRow({ label, value, link }: { label: string; value?: string | null; link?: string }) {
   if (!value) return null;
   return (
-    <div className="grid gap-1 text-sm md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
+    <div className="grid gap-1 text-base md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
       <span className="font-medium text-muted-foreground">{label}</span>
       {link ? (
         <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline hover:text-primary/80">
@@ -417,12 +417,12 @@ function ExpandableRow({ label, value }: { label: string; value?: string | null 
   const shortValue = value.length > 280 ? `${value.slice(0, 280)}...` : value;
   const shouldCollapse = value.length > 280;
   return (
-    <div className="grid gap-1 text-sm md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
+    <div className="grid gap-1 text-base md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
       <span className="font-medium text-muted-foreground">{label}</span>
       <div>
         <p className="whitespace-pre-wrap text-foreground">{expanded || !shouldCollapse ? value : shortValue}</p>
         {shouldCollapse ? (
-          <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => setExpanded((prev) => !prev)}>
+          <Button variant="link" size="sm" className="h-auto px-0 text-sm" onClick={() => setExpanded((prev) => !prev)}>
             {expanded ? "Show less" : "Show more"}
           </Button>
         ) : null}
@@ -434,7 +434,7 @@ function ExpandableRow({ label, value }: { label: string; value?: string | null 
 function TagRow({ label, values }: { label: string; values?: string[] | null }) {
   if (!values || values.length === 0) return null;
   return (
-    <div className="grid gap-1 text-sm md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
+    <div className="grid gap-1 text-base md:grid-cols-[220px_minmax(0,1fr)] md:gap-3">
       <span className="font-medium text-muted-foreground">{label}</span>
       <div className="flex flex-wrap gap-1">
         {values.map((item) => (

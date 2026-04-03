@@ -36,13 +36,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 208 62% 16%;
+    --sidebar-background: 210 50% 14%;
     --sidebar-foreground: 210 27% 94%;
     --sidebar-primary: 324 100% 46%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 208 54% 22%;
+    --sidebar-accent: 210 33% 21%;
     --sidebar-accent-foreground: 210 27% 94%;
-    --sidebar-border: 208 45% 24%;
+    --sidebar-border: 210 28% 28%;
     --sidebar-ring: 199 100% 43%;
 
     --chart-1: 199 100% 43%;
@@ -75,13 +75,13 @@
     --border: 210 33% 24%;
     --input: 210 33% 24%;
     --ring: 199 100% 56%;
-    --sidebar-background: 210 58% 9%;
+    --sidebar-background: 212 46% 10%;
     --sidebar-foreground: 210 27% 93%;
     --sidebar-primary: 324 91% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 16%;
+    --sidebar-accent: 212 30% 17%;
     --sidebar-accent-foreground: 210 27% 93%;
-    --sidebar-border: 210 34% 18%;
+    --sidebar-border: 212 25% 22%;
     --sidebar-ring: 199 100% 56%;
     --warning: 48 100% 56%;
     --warning-foreground: 212 45% 10%;
@@ -123,7 +123,7 @@
   }
 
   .page-subtitle {
-    @apply text-sm text-muted-foreground md:text-base;
+    @apply text-base text-muted-foreground;
   }
 
   .page-actions {

@@ -212,7 +212,7 @@ const Dashboard = () => {
                 <p className="truncate text-sm font-semibold text-foreground">
                   {formatCompactAuthors(item.article.author, item.article.first_author) + (item.article.year ? ` (${item.article.year})` : "")}
                 </p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.article.prosthesis_name || item.article.study_id || item.article.title || "No details"}</p>
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">{item.article.prosthesis_name || item.article.study_id || item.article.title || "No details"}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {item.article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : null}
                   {!item.article.is_draft && isFullyVerified(item.article) ? <StatusBadge tone="success">Verified</StatusBadge> : null}
@@ -245,7 +245,7 @@ const Dashboard = () => {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-foreground">{article.title || article.first_author || article.author || "Untitled"}</p>
-                  <p className="text-xs text-muted-foreground">{formatActivityDate(article.created_at)}</p>
+                  <p className="text-sm text-muted-foreground">{formatActivityDate(article.created_at)}</p>
                 </div>
                 {article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : <StatusBadge tone="success">Saved</StatusBadge>}
               </div>
@@ -280,8 +280,8 @@ function StatCard({
         </div>
         <div className="min-w-0">
           <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-1 text-xs text-muted-foreground/90">{helper}</p>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">{label}</p>
+          <p className="mt-1 text-sm text-muted-foreground/90">{helper}</p>
         </div>
       </CardContent>
     </Card>

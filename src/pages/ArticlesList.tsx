@@ -314,7 +314,7 @@ const ArticlesList = () => {
             </CollapsibleTrigger>
             <div className="lg:col-span-3">
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/50 p-2">
-                <span className="px-1 text-xs font-medium text-muted-foreground">Status</span>
+                <span className="px-1 text-sm font-medium text-muted-foreground">Status</span>
                 {STATUS_FILTERS.map((item) => (
                   <Button
                     key={item.key}
@@ -336,7 +336,7 @@ const ArticlesList = () => {
 
             <div className="lg:col-span-3">
               <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-background/50 p-2">
-                <span className="px-1 text-xs font-medium text-muted-foreground">Verification</span>
+                <span className="px-1 text-sm font-medium text-muted-foreground">Verification</span>
                 {VERIFICATION_FILTERS.map(({ key, label }) => (
                   <Button
                     key={key}
@@ -526,7 +526,7 @@ function ArticleRow({
             </p>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">{metaLine || "No metadata"}</span>
+              <span className="text-sm text-muted-foreground">{metaLine || "No metadata"}</span>
               {article.qa_score != null ? <Badge variant="secondary" className="text-[11px] font-mono">QA: {article.qa_score}/10</Badge> : null}
               {article.verify_peer1 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />P1</Badge> : null}
               {article.verify_peer2 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />P2</Badge> : null}

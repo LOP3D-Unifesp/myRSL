@@ -29,24 +29,24 @@ const AppSidebar = () => {
 
   const sidebarContent = (
     <>
-      <div className="flex h-16 items-center gap-2 px-6 border-b border-sidebar-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
+      <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border/70 px-4 py-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shadow-sm">
           <span className="text-sm font-bold text-sidebar-primary-foreground">L</span>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-sidebar-foreground">LO&P3D</h2>
-          <p className="text-[10px] text-sidebar-foreground/60">Systematic Review</p>
+        <div className="min-w-0">
+          <h2 className="truncate text-[1.05rem] font-semibold leading-none text-sidebar-foreground">LO&P3D</h2>
+          <p className="mt-1 truncate text-sm leading-none text-sidebar-foreground/72">Systematic Review</p>
         </div>
         <button
           onClick={() => setMobileOpen(false)}
-          className="ml-auto rounded-md p-1 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="ml-auto rounded-md p-1.5 text-sidebar-foreground/60 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           aria-label="Close navigation menu"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1.5 px-2.5 py-3.5">
         {navItems.map(({ to, icon: Icon, label }) => {
           const isActive = location.pathname === to ||
             (to === "/articles" && location.pathname === "/articles") ||
@@ -58,25 +58,25 @@ const AppSidebar = () => {
               to={to}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                "group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                 isActive
-                  ? "border-sidebar-primary/40 bg-sidebar-accent text-sidebar-foreground shadow-sm"
-                  : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  ? "bg-sidebar-accent/75 text-sidebar-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border))] before:absolute before:bottom-2 before:left-0 before:top-2 before:w-1 before:rounded-r-full before:bg-sidebar-ring"
+                  : "text-sidebar-foreground/78 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground"
               )}
             >
-              <Icon className={cn("h-4 w-4", isActive ? "text-sidebar-primary" : "text-sidebar-foreground/70 group-hover:text-sidebar-foreground")} />
+              <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-sidebar-ring" : "text-sidebar-foreground/72 group-hover:text-sidebar-foreground")} />
               {label}
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-sidebar-border/70 px-2.5 py-3">
         <button
           onClick={signOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent/45 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-[18px] w-[18px] text-sidebar-foreground/72 group-hover:text-sidebar-foreground" />
           Sign Out
         </button>
       </div>
@@ -95,9 +95,9 @@ const AppSidebar = () => {
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] lg:hidden" onClick={() => setMobileOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)}>
           <aside
-            className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
+            className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-sidebar-border/70 bg-sidebar text-sidebar-foreground shadow-[0_12px_30px_-12px_rgba(3,12,24,0.72)]"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-label="Navigation menu"
@@ -109,7 +109,7 @@ const AppSidebar = () => {
       )}
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 z-30 h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-64 flex-col border-r border-sidebar-border/70 bg-sidebar text-sidebar-foreground lg:flex">
         {sidebarContent}
       </aside>
     </>
