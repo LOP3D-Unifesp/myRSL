@@ -1,29 +1,25 @@
-import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, lazy, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchArticles } from "@/lib/articles";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, BarChart3, Files, Globe2, CalendarRange, Baby, ArrowRight } from "lucide-react";
 import { WorldMap, regions } from "react-svg-worldmap";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
 import CrossAnalysis from "@/components/CrossAnalysis";
-import { buildCountryFrequencyMap } from "@/lib/country-normalization";
+import { buildCountryFrequencyMap, normalizeCountryName } from "@/lib/country-normalization";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 import DashboardSection from "@/components/layout/DashboardSection";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { buildFrequency, buildFrequencyFromNested, topNWithOthers, type FrequencyItem } from "@/lib/analytics-utils";
+import { buildFrequency, buildFrequencyFromNested, topNWithOthers } from "@/lib/analytics-utils";
 import { cn } from "@/lib/utils";
-import { normalizeCountryName } from "@/lib/country-normalization";
+import { ChartCard } from "@/components/analytics/ChartCard";
 
-const truncateLabel = (value: string, max = 24) => (value.length > max ? `${value.slice(0, max - 1)}...` : value);
+const OverviewSection = lazy(() => import("@/components/analytics/sections/OverviewSection"));
+const PediatricSection = lazy(() => import("@/components/analytics/sections/PediatricSection"));
+const MethodologySection = lazy(() => import("@/components/analytics/sections/MethodologySection"));
+const ParticipantsTechSection = lazy(() => import("@/components/analytics/sections/ParticipantsTechSection"));
+
 const HIGHLIGHT_DURATION_MS = 1800;
 
 const ANALYTICS_SECTIONS = {
@@ -60,6 +56,14 @@ const COUNTRY_TO_ISO2_LOOKUP = (() => {
   });
   return lookup;
 })();
+
+function SectionLoader() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center rounded-md border border-dashed border-border/70 bg-background/50 px-4 text-center text-sm text-muted-foreground">
+      Loading charts...
+    </div>
+  );
+}
 
 const Analytics = () => {
   const [search, setSearch] = useState("");
@@ -111,10 +115,12 @@ const Analytics = () => {
   const countryData = countryFrequencyData.top10;
   const allCountryData = countryFrequencyData.all;
   const allCountriesCount = countryFrequencyData.count;
+
   const pediatricQuestionData = useMemo(() => {
     const pediatricArticles = filtered.filter((a) => a.has_pediatric_participants === "Yes");
     return topNWithOthers(buildFrequency(pediatricArticles.map((a) => a.primary_research_question)), 6);
   }, [filtered]);
+
   const geographyMapData = useMemo(() => {
     const mapped: Array<{ country: string; value: number }> = [];
     const unmapped: Array<{ name: string; value: number }> = [];
@@ -127,6 +133,7 @@ const Analytics = () => {
 
     return { mapped, unmapped };
   }, [allCountryData]);
+
   const unmappedCountryNames = useMemo(() => new Set(geographyMapData.unmapped.map((item) => item.name)), [geographyMapData.unmapped]);
 
   const totalStudies = filtered.length;
@@ -257,34 +264,22 @@ const Analytics = () => {
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="overview">
+            <AccordionItem value={ANALYTICS_SECTIONS.overview}>
               <AccordionTrigger className="text-base font-semibold">Overview</AccordionTrigger>
               <AccordionContent className="space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <ChartCard
-                    id={ANALYTICS_TARGETS.year}
-                    highlighted={highlightedTarget === ANALYTICS_TARGETS.year}
-                    title="Publications by Year"
-                    subtitle="How study volume changes over time."
-                    className="xl:col-span-2"
-                  >
-                    <VerticalBarChart data={yearData} dataKey="value" xKey="name" color="hsl(var(--chart-1))" />
-                  </ChartCard>
-
-                  <ChartCard
-                    title="Top Countries"
-                    subtitle={`Executive snapshot: top 10 countries (out of ${countriesCount}).`}
-                  >
-                    <HorizontalRankChart data={countryData} barColor="hsl(var(--chart-5))" />
-                  </ChartCard>
-
-                  <ChartCard
-                    title="Pediatric Participation"
-                    subtitle={`${pediatricSummary}. Executive view of coverage.`}
-                  >
-                    <VerticalBarChart data={pediatricData} dataKey="value" xKey="name" color="hsl(var(--chart-4))" />
-                  </ChartCard>
-                </div>
+                {openSections.includes(ANALYTICS_SECTIONS.overview) ? (
+                  <Suspense fallback={<SectionLoader />}>
+                    <OverviewSection
+                      yearTargetId={ANALYTICS_TARGETS.year}
+                      yearHighlighted={highlightedTarget === ANALYTICS_TARGETS.year}
+                      yearData={yearData}
+                      countryData={countryData}
+                      pediatricData={pediatricData}
+                      countriesCount={countriesCount}
+                      pediatricSummary={pediatricSummary}
+                    />
+                  </Suspense>
+                ) : null}
               </AccordionContent>
             </AccordionItem>
 
@@ -352,65 +347,44 @@ const Analytics = () => {
             <AccordionItem value={ANALYTICS_SECTIONS.pediatric}>
               <AccordionTrigger className="text-base font-semibold">Pediatric</AccordionTrigger>
               <AccordionContent>
-                <ChartCard
-                  id={ANALYTICS_TARGETS.pediatric}
-                  highlighted={highlightedTarget === ANALYTICS_TARGETS.pediatric}
-                  title="Pediatric Deep Dive"
-                  subtitle={`${pediatricSummary}. Includes distribution and top primary questions among pediatric studies.`}
-                >
-                  <div className="grid gap-6 xl:grid-cols-2">
-                    <VerticalBarChart data={pediatricData} dataKey="value" xKey="name" color="hsl(var(--chart-4))" />
-                    {pediatricQuestionData.length > 0 ? (
-                      <HorizontalRankChart data={pediatricQuestionData} barColor="hsl(var(--chart-2))" />
-                    ) : (
-                      <div className="flex h-[280px] items-center justify-center rounded-md border border-dashed border-border/70 bg-background/50 px-4 text-center text-sm text-muted-foreground">
-                        No pediatric studies available for question-level exploration.
-                      </div>
-                    )}
-                  </div>
-                </ChartCard>
+                {openSections.includes(ANALYTICS_SECTIONS.pediatric) ? (
+                  <Suspense fallback={<SectionLoader />}>
+                    <PediatricSection
+                      targetId={ANALYTICS_TARGETS.pediatric}
+                      highlighted={highlightedTarget === ANALYTICS_TARGETS.pediatric}
+                      pediatricSummary={pediatricSummary}
+                      pediatricData={pediatricData}
+                      pediatricQuestionData={pediatricQuestionData}
+                    />
+                  </Suspense>
+                ) : null}
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value={ANALYTICS_SECTIONS.methodology}>
               <AccordionTrigger className="text-base font-semibold">Methodology</AccordionTrigger>
               <AccordionContent className="space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <ChartCard title="Study Design" subtitle="Most common designs with long tail grouped as Others.">
-                    <HorizontalRankChart data={designData} barColor="hsl(var(--chart-2))" />
-                  </ChartCard>
-
-                  <ChartCard title="Control Strategy" subtitle="Dominant strategies ranked by frequency.">
-                    <HorizontalRankChart data={controlData} barColor="hsl(var(--chart-3))" />
-                  </ChartCard>
-
-                  <ChartCard title="Primary Research Question" subtitle="Most frequent questions addressed across included studies.">
-                    <HorizontalRankChart data={primaryRqData} barColor="hsl(var(--primary))" />
-                  </ChartCard>
-
-                  <ChartCard title="Inferential Statistical Tests" subtitle="How often inferential testing is reported.">
-                    <HorizontalRankChart data={statsData} barColor="hsl(var(--accent))" />
-                  </ChartCard>
-                </div>
+                {openSections.includes(ANALYTICS_SECTIONS.methodology) ? (
+                  <Suspense fallback={<SectionLoader />}>
+                    <MethodologySection
+                      designData={designData}
+                      controlData={controlData}
+                      primaryRqData={primaryRqData}
+                      statsData={statsData}
+                    />
+                  </Suspense>
+                ) : null}
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value={ANALYTICS_SECTIONS.participantsTech}>
               <AccordionTrigger className="text-base font-semibold">Participants and Technology</AccordionTrigger>
               <AccordionContent className="space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <ChartCard title="Level of Limb Absence" subtitle="Participant profile ranking with grouped tail.">
-                    <HorizontalRankChart data={levelData} barColor="hsl(var(--chart-3))" />
-                  </ChartCard>
-
-                  <ChartCard title="Most Used Sensors" subtitle="Top sensor modalities in included studies.">
-                    <HorizontalRankChart data={sensorsData} barColor="hsl(var(--accent))" />
-                  </ChartCard>
-
-                  <ChartCard title="Feedback Modalities" subtitle="Distribution of feedback methods with grouped tail.">
-                    <HorizontalRankChart data={feedbackData} barColor="hsl(var(--chart-1))" />
-                  </ChartCard>
-                </div>
+                {openSections.includes(ANALYTICS_SECTIONS.participantsTech) ? (
+                  <Suspense fallback={<SectionLoader />}>
+                    <ParticipantsTechSection levelData={levelData} sensorsData={sensorsData} feedbackData={feedbackData} />
+                  </Suspense>
+                ) : null}
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -457,80 +431,6 @@ function KpiCard({
         </button>
       </CardContent>
     </Card>
-  );
-}
-
-function ChartCard({
-  title,
-  subtitle,
-  children,
-  className,
-  id,
-  highlighted = false,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-  className?: string;
-  id?: string;
-  highlighted?: boolean;
-}) {
-  return (
-    <Card
-      id={id}
-      data-highlighted={highlighted ? "true" : "false"}
-      className={cn(className, highlighted && "ring-2 ring-primary/45 ring-offset-2 ring-offset-background")}
-    >
-      <CardHeader className="space-y-1.5 pb-2">
-        <CardTitle className="text-lg font-serif tracking-tight">{title}</CardTitle>
-        <p className="text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
-
-function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[]; dataKey: string; xKey: string; color: string }) {
-  return (
-    <ChartContainer
-      config={{
-        value: {
-          label: "Studies",
-          color,
-        },
-      }}
-      className="h-[280px] w-full"
-    >
-      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 16 }}>
-        <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" />
-        <XAxis dataKey={xKey} fontSize={11} />
-        <YAxis allowDecimals={false} fontSize={11} width={32} />
-        <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "hsl(var(--muted))" }} />
-        <Bar dataKey={dataKey} fill="var(--color-value)" radius={[6, 6, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
-  );
-}
-
-function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barColor: string }) {
-  return (
-    <ChartContainer
-      config={{
-        value: {
-          label: "Studies",
-          color: barColor,
-        },
-      }}
-      className="h-[320px] w-full"
-    >
-      <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" />
-        <XAxis type="number" allowDecimals={false} fontSize={11} />
-        <YAxis dataKey="name" type="category" width={190} fontSize={11} tickFormatter={(value) => truncateLabel(String(value), 26)} />
-        <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "hsl(var(--muted))" }} />
-        <Bar dataKey="value" fill="var(--color-value)" radius={[0, 6, 6, 0]} />
-      </BarChart>
-    </ChartContainer>
   );
 }
 

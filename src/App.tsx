@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import AppLayout from "./components/AppLayout";
@@ -25,7 +25,6 @@ const ArticleDetail = lazy(() => import("./pages/ArticleDetail"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const DoiConflictReview = lazy(() => import("./pages/DoiConflictReview"));
 const routerBase = import.meta.env.BASE_URL;
-const isProduction = import.meta.env.PROD;
 
 function ProtectedRoutes() {
   const { session, loading } = useAuth();
@@ -55,68 +54,36 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      {isProduction ? (
-        <HashRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
+      <BrowserRouter
+        basename={routerBase}
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center bg-background">
+              <div className="text-muted-foreground">Loading...</div>
+            </div>
+          }
         >
-          <Suspense
-            fallback={
-              <div className="flex min-h-screen items-center justify-center bg-background">
-                <div className="text-muted-foreground">Loading...</div>
-              </div>
-            }
-          >
-            <Routes>
-              <Route path="/auth" element={<AuthRoute />} />
-              <Route element={<ProtectedRoutes />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/articles" element={<ArticlesList />} />
-                <Route path="/articles/new" element={<ArticleForm />} />
-                <Route path="/articles/:id" element={<ArticleDetail />} />
-                <Route path="/articles/:id/edit" element={<ArticleForm />} />
-                <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/doi-sync/review" element={<DoiConflictReview />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </HashRouter>
-      ) : (
-        <BrowserRouter
-          basename={routerBase}
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <Suspense
-            fallback={
-              <div className="flex min-h-screen items-center justify-center bg-background">
-                <div className="text-muted-foreground">Loading...</div>
-              </div>
-            }
-          >
-            <Routes>
-              <Route path="/auth" element={<AuthRoute />} />
-              <Route element={<ProtectedRoutes />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/articles" element={<ArticlesList />} />
-                <Route path="/articles/new" element={<ArticleForm />} />
-                <Route path="/articles/:id" element={<ArticleDetail />} />
-                <Route path="/articles/:id/edit" element={<ArticleForm />} />
-                <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/doi-sync/review" element={<DoiConflictReview />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      )}
+          <Routes>
+            <Route path="/auth" element={<AuthRoute />} />
+            <Route element={<ProtectedRoutes />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/articles" element={<ArticlesList />} />
+              <Route path="/articles/new" element={<ArticleForm />} />
+              <Route path="/articles/:id" element={<ArticleDetail />} />
+              <Route path="/articles/:id/edit" element={<ArticleForm />} />
+              <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/doi-sync/review" element={<DoiConflictReview />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
