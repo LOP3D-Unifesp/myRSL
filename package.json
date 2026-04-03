@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "supabase:migrate:new": "powershell -ExecutionPolicy Bypass -File ./scripts/migrate-new-supabase.ps1",
     "test": "vitest run",
     "test:watch": "vitest"
   },
