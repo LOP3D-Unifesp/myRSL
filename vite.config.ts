@@ -23,7 +23,8 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
-          charts: ["recharts", "react-svg-worldmap"],
+          charts: ["recharts"],
+          worldmap: ["react-svg-worldmap"],
           xlsx: ["xlsx"],
         },
       },

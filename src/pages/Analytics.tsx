@@ -303,7 +303,7 @@ const Analytics = () => {
                         <WorldMapErrorBoundary>
                           <WorldMap
                             title="Studies by Country"
-                            size="responsive"
+                            size="xxl"
                             data={geographyMapData.mapped}
                             color="hsl(var(--chart-5))"
                             backgroundColor="hsl(var(--muted))"
