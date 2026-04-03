@@ -1,4 +1,4 @@
-project_id = "yrxxqmggkodvbufxnpws"
+project_id = "jjthonughzxmdaqasbmy"
 
 [auth.email]
 enable_confirmations = false
@@ -22,4 +22,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.sync-dois]
-verify_jwt = true
+verify_jwt = false

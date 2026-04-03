@@ -1,18 +1,15 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.25.76";
-import { assertBodySize, getClientIp, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
-import { enforceRateLimit } from "../_shared/rate-limit.ts";
+import { assertBodySize, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
 
 const MAX_SYNC_BODY_BYTES = 64_000;
-const RATE_LIMIT_PER_WINDOW = 5;
-const RATE_WINDOW_SECONDS = 60;
 const CROSSREF_TIMEOUT_MS = 10_000;
 const CROSSREF_MAX_ATTEMPTS = 3;
 const CROSSREF_BASE_BACKOFF_MS = 700;
 
 const requestSchema = z.object({
-  articleIds: z.array(z.string().uuid()).max(200).optional(),
+  articleIds: z.array(z.string().uuid()).max(200),
   includeAbstract: z.boolean().optional().default(true),
   limit: z.number().int().min(1).max(200).optional().default(200),
 });
@@ -70,32 +67,6 @@ type ConflictArticleItem = {
   suggested: ReviewSnapshot;
   fields: ConflictItem[];
 };
-
-async function getUserIdFromToken(req: Request): Promise<string> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    throw new Response(JSON.stringify({ error: "Missing Authorization header." }), {
-      status: 401,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!supabaseUrl || !supabaseAnonKey) throw new Error("Missing Supabase env configuration.");
-
-  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data, error } = await authClient.auth.getUser();
-  if (error || !data.user) {
-    throw new Response(JSON.stringify({ error: "Invalid or expired token." }), {
-      status: 401,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
-  }
-  return data.user.id;
-}
 
 async function fetchDoiByTitle(title: string): Promise<string | null> {
   const data = await fetchCrossrefJsonWithRetry(
@@ -264,18 +235,30 @@ serve(async (req) => {
 
   try {
     assertBodySize(req, MAX_SYNC_BODY_BYTES);
-    const userId = await getUserIdFromToken(req);
-    const clientIp = getClientIp(req);
-    const withinLimit = await enforceRateLimit({
-      endpoint: "sync-dois",
-      userId,
-      ipAddress: clientIp,
-      limit: RATE_LIMIT_PER_WINDOW,
-      windowSeconds: RATE_WINDOW_SECONDS,
-    });
-    if (!withinLimit) {
-      return jsonResponse(req, { error: "Rate limit exceeded, please try again later." }, 429);
+
+    // Manual JWT verification (project uses ES256, incompatible with gateway verify_jwt=true)
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse(req, { code: "UNAUTHORIZED", error: "Missing authorization." }, 401);
     }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+      return jsonResponse(req, { error: "Server environment is not configured." }, 500);
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return jsonResponse(req, { code: "UNAUTHORIZED", error: "Invalid or expired session." }, 401);
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json().catch(() => ({}));
     const parsed = requestSchema.safeParse(body);
@@ -283,29 +266,21 @@ serve(async (req) => {
       return jsonResponse(req, { error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse(req, { error: "SUPABASE_SERVICE_ROLE_KEY is not configured." }, 500);
-    }
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
     const limit = parsed.data.limit ?? 200;
-    let query = adminClient
+    const ids = parsed.data.articleIds;
+    if (!ids || ids.length === 0) {
+      return jsonResponse(req, { error: "articleIds is required and cannot be empty." }, 400);
+    }
+    const includeAbstract = parsed.data.includeAbstract ?? true;
+
+    const { data, error } = await adminClient
       .from("articles")
       .select("id,study_id,title,doi,year,author,first_author,last_author,abstract")
-      .eq("user_id", userId)
       .or("doi.not.is.null,title.not.is.null")
+      .eq("user_id", user.id)
+      .in("id", ids)
       .order("created_at", { ascending: false })
       .limit(limit);
-
-    const ids = parsed.data.articleIds;
-    const includeAbstract = parsed.data.includeAbstract ?? true;
-    if (ids && ids.length > 0) {
-      query = query.in("id", ids);
-    }
-
-    const { data, error } = await query;
     if (error) return jsonResponse(req, { error: "Could not fetch articles for DOI sync." }, 500);
     const candidates = (data ?? []) as ArticleRow[];
 
@@ -316,41 +291,33 @@ serve(async (req) => {
     const conflicts: ConflictItem[] = [];
     const conflictQueue: ConflictArticleItem[] = [];
 
-    for (const article of candidates) {
+    type ArticleResult = {
+      updated: number; unchanged: number; failed: number; missingSource: number;
+      conflicts: ConflictItem[]; conflictQueueItem: ConflictArticleItem | null;
+    };
+
+    async function processArticle(article: ArticleRow): Promise<ArticleResult> {
+      const result: ArticleResult = { updated: 0, unchanged: 0, failed: 0, missingSource: 0, conflicts: [], conflictQueueItem: null };
       try {
         let resolvedDoi = article.doi;
         if (!resolvedDoi && article.title) {
           resolvedDoi = await fetchDoiByTitle(article.title);
         }
 
-        if (!resolvedDoi) {
-          missingSource += 1;
-          continue;
-        }
+        if (!resolvedDoi) { result.missingSource = 1; return result; }
 
         const work = await fetchCrossrefWorkByDoi(resolvedDoi);
-        if (!work) {
-          missingSource += 1;
-          continue;
-        }
+        if (!work) { result.missingSource = 1; return result; }
 
         const currentSnapshot: ReviewSnapshot = {
-          doi: article.doi,
-          title: article.title,
-          year: article.year,
-          author: article.author,
-          first_author: article.first_author,
-          last_author: article.last_author,
-          abstract: article.abstract,
+          doi: article.doi, title: article.title, year: article.year,
+          author: article.author, first_author: article.first_author,
+          last_author: article.last_author, abstract: article.abstract,
         };
         const suggestedSnapshot: ReviewSnapshot = {
-          doi: resolvedDoi ?? null,
-          title: work.title?.[0] ?? null,
-          year: extractYearFromWork(work),
-          author: null,
-          first_author: null,
-          last_author: null,
-          abstract: includeAbstract ? cleanAbstract(work.abstract) : null,
+          doi: resolvedDoi ?? null, title: work.title?.[0] ?? null,
+          year: extractYearFromWork(work), author: null, first_author: null,
+          last_author: null, abstract: includeAbstract ? cleanAbstract(work.abstract) : null,
         };
 
         const updatePayload: Record<string, string | number> = {};
@@ -372,36 +339,45 @@ serve(async (req) => {
         }
 
         if (articleConflicts.length > 0) {
-          conflictQueue.push({
-            articleId: article.id,
-            studyId: article.study_id,
-            doiCurrent: article.doi,
-            doiSuggested: suggestedSnapshot.doi,
-            titleCurrent: article.title,
-            current: currentSnapshot,
-            suggested: suggestedSnapshot,
+          result.conflictQueueItem = {
+            articleId: article.id, studyId: article.study_id,
+            doiCurrent: article.doi, doiSuggested: suggestedSnapshot.doi,
+            titleCurrent: article.title, current: currentSnapshot, suggested: suggestedSnapshot,
             fields: articleConflicts,
-          });
-          for (const conflict of articleConflicts) {
-            if (conflicts.length < MAX_CONFLICTS_RETURNED) conflicts.push(conflict);
+          };
+          result.conflicts = articleConflicts;
+        }
+
+        if (Object.keys(updatePayload).length === 0) { result.unchanged = 1; return result; }
+
+        const { error: updateError } = await adminClient.from("articles").update(updatePayload).eq("id", article.id);
+        if (updateError) { result.failed = 1; return result; }
+        result.updated = 1;
+      } catch {
+        result.failed = 1;
+      }
+      return result;
+    }
+
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+      const batch = candidates.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(batch.map(processArticle));
+      for (const r of results) {
+        updated += r.updated;
+        unchanged += r.unchanged;
+        failed += r.failed;
+        missingSource += r.missingSource;
+        if (r.conflictQueueItem) {
+          conflictQueue.push(r.conflictQueueItem);
+          for (const c of r.conflicts) {
+            if (conflicts.length < MAX_CONFLICTS_RETURNED) conflicts.push(c);
           }
         }
-
-        if (Object.keys(updatePayload).length === 0) {
-          unchanged += 1;
-          continue;
-        }
-
-        const { error: updateError } = await adminClient.from("articles").update(updatePayload).eq("id", article.id).eq("user_id", userId);
-        if (updateError) {
-          failed += 1;
-          continue;
-        }
-        updated += 1;
-      } catch {
-        failed += 1;
       }
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (i + BATCH_SIZE < candidates.length) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
 
     const summary = {

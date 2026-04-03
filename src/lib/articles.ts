@@ -4,6 +4,11 @@ import { sanitizeArticleWriteInput, type ArticleWriteInput } from "@/lib/article
 import { buildArticlesWorkbookArrayBuffer, createArticlesExportFileName } from "@/lib/articles-export";
 import { VERIFICATION_KEYS, type VerificationKey } from "@/lib/article-verification";
 
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL ||
+  (import.meta.env.VITE_SUPABASE_PROJECT_ID ? `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co` : "");
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+
 export type Article = Database["public"]["Tables"]["articles"]["Row"];
 export type ArticleInsert = Omit<Article, "id" | "created_at" | "updated_at">;
 
@@ -139,7 +144,47 @@ type SyncInvokePayload = {
   conflicts_count?: number;
   conflicts?: MetadataSyncConflict[];
   error?: string;
+  code?: string;
 };
+
+type FunctionInvokeError = {
+  message?: string;
+  context?: Response;
+  status?: number;
+};
+
+async function getFreshAccessToken(): Promise<string> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error("Unable to validate your session. Please sign in again.");
+  }
+
+  let session = sessionData.session;
+  if (!session?.access_token) {
+    throw new Error("Your session is invalid or expired. Please sign in again and retry DOI sync.");
+  }
+
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt = session.expires_at ?? 0;
+  if (expiresAt <= nowInSeconds + 30) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed.session?.access_token) {
+      throw new Error("Your session is invalid or expired. Please sign in again and retry DOI sync.");
+    }
+    session = refreshed.session;
+  }
+
+  return session.access_token;
+}
+
+function isUnauthorizedSyncError(error: unknown): boolean {
+  const invokeError = error as FunctionInvokeError | null;
+  if (!invokeError) return false;
+  if (invokeError.status === 401) return true;
+  if (invokeError.context instanceof Response && invokeError.context.status === 401) return true;
+  const normalized = (invokeError.message ?? "").toLowerCase();
+  return normalized.includes("401") || normalized.includes("unauthorized");
+}
 
 function normalizeSyncResult(raw: SyncInvokePayload | null | undefined): MetadataSyncResult {
   const summary = raw?.summary ?? {
@@ -167,18 +212,49 @@ function normalizeSyncResult(raw: SyncInvokePayload | null | undefined): Metadat
   };
 }
 
-export async function syncCurrentUserDoiMetadata(options: SyncOptions = {}): Promise<MetadataSyncResult> {
-  const { data, error } = await supabase.functions.invoke("sync-dois", {
-    body: {
-      articleIds: options.articleIds,
-      includeAbstract: options.includeAbstract ?? true,
-      limit: options.limit ?? 200,
+async function invokeSyncDois(accessToken: string, body: SyncOptions): Promise<SyncInvokePayload | null> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/sync-dois`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${accessToken}`,
     },
+    body: JSON.stringify({
+      articleIds: body.articleIds,
+      includeAbstract: body.includeAbstract ?? true,
+      limit: body.limit ?? 200,
+    }),
   });
-  if (error) throw new Error(error.message || "DOI metadata sync failed");
-  const payload = (data ?? null) as SyncInvokePayload | null;
-  if (payload?.error) throw new Error(payload.error);
-  return normalizeSyncResult(payload);
+
+  const payload = (await response.json().catch(() => null)) as SyncInvokePayload | null;
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || `DOI metadata sync failed (${response.status})`;
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+export async function syncCurrentUserDoiMetadata(options: SyncOptions = {}): Promise<MetadataSyncResult> {
+  const accessToken = await getFreshAccessToken();
+  try {
+    const payload = await invokeSyncDois(accessToken, options);
+    if (payload?.error) {
+      if (payload.code === "UNAUTHORIZED") {
+        throw new Error("Your session is invalid or expired. Please sign in again and retry DOI sync.");
+      }
+      throw new Error(payload.error);
+    }
+    return normalizeSyncResult(payload);
+  } catch (error) {
+    if (isUnauthorizedSyncError(error)) {
+      throw new Error("Your session is invalid or expired. Please sign in again and retry DOI sync.");
+    }
+    const invokeError = error as FunctionInvokeError | null;
+    throw new Error(invokeError?.message || "DOI metadata sync failed");
+  }
 }
 
 export async function fetchArticle(id: string) {

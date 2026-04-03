@@ -42,6 +42,13 @@ URL esperada do site:
 - `vite.config.ts` usa `base` de producao em `/myRSL/` para funcionar no subpath do Pages.
 - O workflow copia `dist/index.html` para `dist/404.html` para fallback de rotas SPA.
 
+## Verificacao operacional de Edge Functions
+
+- Consulte o checklist em `docs/supabase-edge-functions-verification.md` para validar:
+  - alinhamento de `project_ref` (`jjthonughzxmdaqasbmy`);
+  - deploy de functions no projeto correto;
+  - secrets e diagnostico por logs (`401`, token invalido, service role ausente).
+
 ## Seguranca (abril/2026)
 
 - `chat-with-pdf` exige `articleId` e valida ownership (`articles.user_id = auth.uid()`), bloqueando acesso cruzado.
