@@ -46,6 +46,10 @@ type FormState = {
   primary_research_question: string; research_questions: string[];
 };
 
+function toggleArrayValue(current: string[], value: string): string[] {
+  return current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+}
+
 function deriveFirstAuthor(authors: string) {
   return authors.split(";").map((x) => x.trim()).find(Boolean) ?? null;
 }
@@ -89,10 +93,22 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
   const qaScore = useMemo(() => calculateQAScore(qa), [qa]);
   useEffect(() => onQaScorePreviewChange(qaScore), [qaScore, onQaScorePreviewChange]);
 
-  const isFieldDirty = (k: keyof FormState) => Array.isArray(form[k]) ? !sameArray(form[k] as string[], base[k] as string[]) : String(form[k]).trim() !== String(base[k]).trim();
-  const sectionDirty = (section: Exclude<SectionKey, "qa">) => SECTION_FIELDS[section].some(isFieldDirty);
-  const qaDirty = QA_QUESTIONS.some((q) => (qa[q.key] ?? null) !== (qaBase[q.key] ?? null));
-  const anyDirty = sectionDirty("general") || sectionDirty("publication") || sectionDirty("pediatric") || sectionDirty("technical") || sectionDirty("testing") || sectionDirty("research") || qaDirty;
+  const dirtyFields = useMemo(() => {
+    const next = new Set<keyof FormState>();
+    (Object.keys(form) as Array<keyof FormState>).forEach((key) => {
+      const current = form[key];
+      const original = base[key];
+      if (Array.isArray(current) && Array.isArray(original)) {
+        if (!sameArray(current, original)) next.add(key);
+        return;
+      }
+      if (String(current).trim() !== String(original).trim()) next.add(key);
+    });
+    return next;
+  }, [base, form]);
+  const sectionDirty = (section: Exclude<SectionKey, "qa">) => SECTION_FIELDS[section].some((key) => dirtyFields.has(key));
+  const qaDirty = useMemo(() => QA_QUESTIONS.some((q) => (qa[q.key] ?? null) !== (qaBase[q.key] ?? null)), [qa, qaBase]);
+  const anyDirty = dirtyFields.size > 0 || qaDirty;
   useEffect(() => onDirtyChange(anyDirty), [anyDirty, onDirtyChange]);
 
   const discard = (section: SectionKey) => {
@@ -118,7 +134,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
 
     const payload: Partial<ArticleInsert> = {};
     for (const k of SECTION_FIELDS[section]) {
-      if (!isFieldDirty(k)) continue;
+      if (!dirtyFields.has(k)) continue;
       if (k === "year" || k === "sample_size") {
         const n = String(form[k]).trim() ? Number(String(form[k]).trim()) : null;
         payload[k] = Number.isFinite(n) ? n : null;
@@ -128,7 +144,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
         payload[k] = String(form[k]).trim() || null;
       }
     }
-    if (section === "general" && isFieldDirty("author") && !isFieldDirty("first_author")) payload.first_author = form.author.trim() ? deriveFirstAuthor(form.author) : null;
+    if (section === "general" && dirtyFields.has("author") && !dirtyFields.has("first_author")) payload.first_author = form.author.trim() ? deriveFirstAuthor(form.author) : null;
     if (Object.keys(payload).length === 0) return;
     setSaving(section);
     try { await updateArticle(article.id, payload); setBase(form); onSaved(); toast.success("Section saved."); } catch { toast.error("Failed to save section."); } finally { setSaving(null); }
@@ -225,12 +241,11 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
   );
 };
 
-function Section({ title, value, dirty, children, right }: { title: string; value: string; dirty: boolean; children: React.ReactNode; right?: React.ReactNode }) {
+function Section({ title, value, dirty, children }: { title: string; value: string; dirty: boolean; children: React.ReactNode }) {
   return (
     <AccordionItem value={value} className="rounded-lg border border-border/60 px-2">
       <AccordionTrigger className="py-4 text-base font-semibold leading-snug">
         <span className="inline-flex items-center gap-2">{title}{dirty ? <Badge variant="outline" className="text-[11px]">Dirty</Badge> : null}</span>
-        {right}
       </AccordionTrigger>
       <AccordionContent>
         <Card className="border-border/60">

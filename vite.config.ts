@@ -19,4 +19,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          charts: ["recharts", "react-svg-worldmap"],
+          xlsx: ["xlsx"],
+        },
+      },
+    },
+  },
 }));

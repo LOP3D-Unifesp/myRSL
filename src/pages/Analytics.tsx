@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchArticles } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,20 +102,15 @@ const Analytics = () => {
   const sensorsData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.sensors)), 8), [filtered]);
   const feedbackData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.feedback_modalities)), 8), [filtered]);
 
-  const countryData = useMemo(() => {
-    const map = buildCountryFrequencyMap(filtered);
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [filtered]);
-  const allCountryData = useMemo(() => {
-    const map = buildCountryFrequencyMap(filtered);
-    return Object.entries(map)
+  const countryFrequencyData = useMemo(() => {
+    const all = Object.entries(buildCountryFrequencyMap(filtered))
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
+    return { all, top10: all.slice(0, 10), count: all.length };
   }, [filtered]);
-  const allCountriesCount = useMemo(() => Object.keys(buildCountryFrequencyMap(filtered)).length, [filtered]);
+  const countryData = countryFrequencyData.top10;
+  const allCountryData = countryFrequencyData.all;
+  const allCountriesCount = countryFrequencyData.count;
   const pediatricQuestionData = useMemo(() => {
     const pediatricArticles = filtered.filter((a) => a.has_pediatric_participants === "Yes");
     return topNWithOthers(buildFrequency(pediatricArticles.map((a) => a.primary_research_question)), 6);
@@ -146,7 +141,7 @@ const Analytics = () => {
     : "No country distribution available";
   const pediatricSummary = `Yes: ${pediatricYes} | No: ${pediatricNo}`;
 
-  const setTransientHighlight = (targetId: string) => {
+  const setTransientHighlight = useCallback((targetId: string) => {
     if (highlightTimerRef.current != null) {
       window.clearTimeout(highlightTimerRef.current);
     }
@@ -155,9 +150,9 @@ const Analytics = () => {
       setHighlightedTarget((current) => (current === targetId ? null : current));
       highlightTimerRef.current = null;
     }, HIGHLIGHT_DURATION_MS);
-  };
+  }, []);
 
-  const activateTarget = (targetId: string, accordionSection: string) => {
+  const activateTarget = useCallback((targetId: string, accordionSection: string) => {
     setOpenSections((previous) => (previous.includes(accordionSection) ? previous : [...previous, accordionSection]));
     window.setTimeout(() => {
       const element = document.getElementById(targetId);
@@ -165,7 +160,12 @@ const Analytics = () => {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
       setTransientHighlight(targetId);
     }, 60);
-  };
+  }, [setTransientHighlight]);
+
+  const onActivateCross = useCallback(() => activateTarget(ANALYTICS_TARGETS.cross, ANALYTICS_SECTIONS.cross), [activateTarget]);
+  const onActivateYear = useCallback(() => activateTarget(ANALYTICS_TARGETS.year, ANALYTICS_SECTIONS.overview), [activateTarget]);
+  const onActivateGeography = useCallback(() => activateTarget(ANALYTICS_TARGETS.geography, ANALYTICS_SECTIONS.geography), [activateTarget]);
+  const onActivatePediatric = useCallback(() => activateTarget(ANALYTICS_TARGETS.pediatric, ANALYTICS_SECTIONS.pediatric), [activateTarget]);
 
   useEffect(() => {
     return () => {
@@ -198,7 +198,7 @@ const Analytics = () => {
                 value={String(totalStudies)}
                 helper="Jump to Cross-Analysis"
                 targetId={ANALYTICS_TARGETS.cross}
-                onActivate={() => activateTarget(ANALYTICS_TARGETS.cross, ANALYTICS_SECTIONS.cross)}
+                onActivate={onActivateCross}
               />
               <KpiCard
                 icon={<CalendarRange className="h-4 w-4 text-primary" />}
@@ -206,7 +206,7 @@ const Analytics = () => {
                 value={yearRange}
                 helper="Jump to Publications by Year"
                 targetId={ANALYTICS_TARGETS.year}
-                onActivate={() => activateTarget(ANALYTICS_TARGETS.year, ANALYTICS_SECTIONS.overview)}
+                onActivate={onActivateYear}
               />
               <KpiCard
                 icon={<Globe2 className="h-4 w-4 text-primary" />}
@@ -214,7 +214,7 @@ const Analytics = () => {
                 value={String(countriesCount)}
                 helper="Jump to Geography section"
                 targetId={ANALYTICS_TARGETS.geography}
-                onActivate={() => activateTarget(ANALYTICS_TARGETS.geography, ANALYTICS_SECTIONS.geography)}
+                onActivate={onActivateGeography}
               />
               <KpiCard
                 icon={<Baby className="h-4 w-4 text-primary" />}
@@ -222,7 +222,7 @@ const Analytics = () => {
                 value={`${pediatricRate}%`}
                 helper="Jump to Pediatric section"
                 targetId={ANALYTICS_TARGETS.pediatric}
-                onActivate={() => activateTarget(ANALYTICS_TARGETS.pediatric, ANALYTICS_SECTIONS.pediatric)}
+                onActivate={onActivatePediatric}
               />
             </div>
           </DashboardSection>
@@ -419,7 +419,7 @@ const Analytics = () => {
   );
 };
 
-function KpiCard({
+const KpiCard = memo(function KpiCard({
   icon,
   label,
   value,
@@ -457,9 +457,9 @@ function KpiCard({
       </CardContent>
     </Card>
   );
-}
+});
 
-function ChartCard({
+const ChartCard = memo(function ChartCard({
   title,
   subtitle,
   children,
@@ -487,9 +487,9 @@ function ChartCard({
       <CardContent>{children}</CardContent>
     </Card>
   );
-}
+});
 
-function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[]; dataKey: string; xKey: string; color: string }) {
+const VerticalBarChart = memo(function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[]; dataKey: string; xKey: string; color: string }) {
   return (
     <ChartContainer
       config={{
@@ -509,9 +509,9 @@ function VerticalBarChart({ data, dataKey, xKey, color }: { data: FrequencyItem[
       </BarChart>
     </ChartContainer>
   );
-}
+});
 
-function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barColor: string }) {
+const HorizontalRankChart = memo(function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barColor: string }) {
   return (
     <ChartContainer
       config={{
@@ -531,6 +531,6 @@ function HorizontalRankChart({ data, barColor }: { data: FrequencyItem[]; barCol
       </BarChart>
     </ChartContainer>
   );
-}
+});
 
 export default Analytics;

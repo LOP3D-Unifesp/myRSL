@@ -9,7 +9,15 @@ import Auth from "./pages/Auth";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,  // dados considerados frescos por 5 min
+      gcTime: 15 * 60 * 1000,    // mantém no cache por 15 min após desmonte
+      retry: 1,
+    },
+  },
+});
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ArticlesList = lazy(() => import("./pages/ArticlesList"));
 const ArticleForm = lazy(() => import("./pages/ArticleForm"));
