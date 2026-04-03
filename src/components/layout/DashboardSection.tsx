@@ -1,15 +1,32 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type DashboardSectionProps = {
   title: string;
   subtitle?: string;
   action?: ReactNode;
   children: ReactNode;
+  variant?: "default" | "priority" | "subtle";
+  compact?: boolean;
 };
 
-const DashboardSection = ({ title, subtitle, action, children }: DashboardSectionProps) => {
+const DashboardSection = ({
+  title,
+  subtitle,
+  action,
+  children,
+  variant = "default",
+  compact = false,
+}: DashboardSectionProps) => {
   return (
-    <section className="rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+    <section
+      className={cn(
+        "dashboard-section",
+        variant === "priority" && "dashboard-section-priority",
+        variant === "subtle" && "dashboard-section-subtle",
+        compact && "dashboard-section-compact",
+      )}
+    >
       <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-serif text-foreground">{title}</h2>

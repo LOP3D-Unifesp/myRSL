@@ -80,7 +80,7 @@ function sortGroups(groups: GroupItem[], sort: GroupSort): GroupItem[] {
 }
 
 const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
-  const [mode, setMode] = useState<GroupMode>("last_author");
+  const [mode, setMode] = useState<GroupMode>("author");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [groupSearch, setGroupSearch] = useState("");
   const [groupSort, setGroupSort] = useState<GroupSort>("count_desc");
@@ -161,10 +161,7 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
   return (
     <Card className="border-border/80">
       <CardHeader className="space-y-4">
-        <div>
-          <CardTitle className="text-lg font-serif">Cross-Analysis</CardTitle>
-          <p className="text-sm text-muted-foreground">Group and compare articles by different dimensions.</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Group and compare articles by key dimensions.</p>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <SummaryMetric label="Total Groups" value={String(grouped.length)} />

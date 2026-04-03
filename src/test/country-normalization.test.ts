@@ -12,9 +12,12 @@ describe("country normalization", () => {
       { country: "U.S.A." },
       { country: "United States of America" },
       { country: "Japan and Korea" },
+      { country: "Malaysia; Saudi Arabia" },
     ]);
     expect(map["United States"]).toBe(2);
     expect(map["South Korea"]).toBe(1);
     expect(map["Japan"]).toBe(1);
+    expect(map["Malaysia"]).toBe(1);
+    expect(map["Saudi Arabia"]).toBe(1);
   });
 });

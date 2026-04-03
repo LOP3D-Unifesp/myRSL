@@ -32,9 +32,9 @@ export function normalizeCountryName(raw: string): string {
  */
 export function splitAndNormalizeCountries(countryField: string | null | undefined): string[] {
   if (!countryField) return [];
-  // Split by comma, " and ", " & "
+  // Split by comma, semicolon, " and ", " & "
   const parts = countryField
-    .split(/,|\band\b|&/gi)
+    .split(/,|;|\band\b|&/gi)
     .map((s) => s.trim())
     .filter(Boolean);
   const normalized = parts.map(normalizeCountryName);

@@ -4,12 +4,14 @@ import { fetchArticleSummaries, syncCurrentUserDoiMetadata, type ArticleListItem
 import { formatCompactAuthors } from "@/lib/article-authors";
 import { isFullyVerified } from "@/lib/article-verification";
 import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
+import { buildCountryFrequencyMap } from "@/lib/country-normalization";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Users, Beaker, TrendingUp, RefreshCw, PlusCircle, type LucideIcon, LayoutDashboard, ShieldCheck, ArrowRight } from "lucide-react";
+import { FileText, Users, Beaker, RefreshCw, PlusCircle, type LucideIcon, LayoutDashboard, ShieldCheck, ArrowRight, Clock3 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 import DashboardSection from "@/components/layout/DashboardSection";
@@ -19,18 +21,41 @@ type QueueItem = {
   priority: number;
   actionLabel: "Continue" | "Review" | "Open";
   actionTo: string;
+  statusLabel: "Draft" | "Pending" | "Verified";
+  tone: "warning" | "success";
 };
 
 function buildQueueItem(article: ArticleListItem): QueueItem {
   if (article.is_draft) {
-    return { article, priority: 0, actionLabel: "Continue", actionTo: `/articles/${article.id}/edit` };
+    return {
+      article,
+      priority: 0,
+      actionLabel: "Continue",
+      actionTo: `/articles/${article.id}/edit`,
+      statusLabel: "Draft",
+      tone: "warning",
+    };
   }
 
   if (!isFullyVerified(article)) {
-    return { article, priority: 1, actionLabel: "Review", actionTo: `/articles/${article.id}` };
+    return {
+      article,
+      priority: 1,
+      actionLabel: "Review",
+      actionTo: `/articles/${article.id}`,
+      statusLabel: "Pending",
+      tone: "warning",
+    };
   }
 
-  return { article, priority: 2, actionLabel: "Open", actionTo: `/articles/${article.id}` };
+  return {
+    article,
+    priority: 2,
+    actionLabel: "Open",
+    actionTo: `/articles/${article.id}`,
+    statusLabel: "Verified",
+    tone: "success",
+  };
 }
 
 function formatActivityDate(value: string | null): string {
@@ -42,6 +67,14 @@ function formatActivityDate(value: string | null): string {
     day: "numeric",
     year: "numeric",
   }).format(date);
+}
+
+function getQueuePrimaryText(article: ArticleListItem): string {
+  return formatCompactAuthors(article.author, article.first_author) + (article.year ? ` (${article.year})` : "");
+}
+
+function getQueueSecondaryText(article: ArticleListItem): string {
+  return article.prosthesis_name || article.study_id || article.title || "No details";
 }
 
 const Dashboard = () => {
@@ -57,7 +90,7 @@ const Dashboard = () => {
   const totalArticles = articles.length;
   const draftCount = articles.filter((a) => a.is_draft).length;
   const pendingVerificationCount = articles.filter((a) => !a.is_draft && !isFullyVerified(a)).length;
-  const uniqueCountries = new Set(articles.map((a) => a.country).filter(Boolean)).size;
+  const uniqueCountries = Object.keys(buildCountryFrequencyMap(articles)).length;
   const validYearRows = articles.filter((a) => a.year != null);
   const avgYear = validYearRows.length
     ? Math.round(validYearRows.reduce((sum, article) => sum + (article.year ?? 0), 0) / validYearRows.length)
@@ -166,6 +199,7 @@ const Dashboard = () => {
         title="Dashboard"
         subtitle="Systematic review command center and work queue."
         titleIcon={<LayoutDashboard className="h-6 w-6 text-primary" />}
+        variant="emphasis"
         actions={
           <>
             <Button asChild>
@@ -184,65 +218,84 @@ const Dashboard = () => {
       <DashboardSection
         title="Snapshot"
         subtitle="Quick indicators for current review status."
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link to="/analytics">Open Analytics</Link>
+          </Button>
+        }
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={FileText} label="Total Articles" value={totalArticles} helper="All records" tone="default" />
-          <StatCard icon={Beaker} label="Drafts" value={draftCount} helper={draftCount > 0 ? "Need completion" : "No pending drafts"} tone={draftCount > 0 ? "warning" : "default"} />
-          <StatCard icon={ShieldCheck} label="Pending Verification" value={pendingVerificationCount} helper={pendingVerificationCount > 0 ? "Needs review" : "All verified"} tone={pendingVerificationCount > 0 ? "warning" : "success"} />
-          <StatCard icon={Users} label="Countries" value={uniqueCountries} helper={avgYear ? `Avg. Year ${avgYear}` : "Year not available"} tone="default" />
+          <StatCard icon={FileText} label="Total Articles" value={totalArticles} helper="All records" tone="default" to="/articles" />
+          <StatCard icon={Beaker} label="Drafts" value={draftCount} helper={draftCount > 0 ? "Need completion" : "No pending drafts"} tone={draftCount > 0 ? "warning" : "default"} to="/articles?status=draft" />
+          <StatCard icon={ShieldCheck} label="Pending Verification" value={pendingVerificationCount} helper={pendingVerificationCount > 0 ? "Needs review" : "All verified"} tone={pendingVerificationCount > 0 ? "warning" : "success"} to="/verifications" />
+          <StatCard icon={Users} label="Countries" value={uniqueCountries} helper={avgYear ? `Avg. Year ${avgYear}` : "Year not available"} tone="default" to="/analytics" />
         </div>
       </DashboardSection>
 
       <DashboardSection
         title="Work Queue"
         subtitle="Priority-ordered items that need action now."
+        variant="priority"
         action={
           <Button asChild variant="outline" size="sm">
             <Link to="/articles">View All Articles</Link>
           </Button>
         }
       >
-        <div className="space-y-2">
-          {workQueue.map((item) => (
-            <article key={item.article.id} className="flex flex-col gap-3 rounded-lg border bg-background/80 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {formatCompactAuthors(item.article.author, item.article.first_author) + (item.article.year ? ` (${item.article.year})` : "")}
-                </p>
-                <p className="mt-0.5 truncate text-sm text-muted-foreground">{item.article.prosthesis_name || item.article.study_id || item.article.title || "No details"}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {item.article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : null}
-                  {!item.article.is_draft && isFullyVerified(item.article) ? <StatusBadge tone="success">Verified</StatusBadge> : null}
-                  {!item.article.is_draft && !isFullyVerified(item.article) ? <StatusBadge tone="warning">Pending</StatusBadge> : null}
+        <ol className="space-y-2.5">
+          {workQueue.map((item, index) => (
+            <li
+              key={item.article.id}
+              className={cn(
+                "relative flex flex-col gap-3 rounded-lg border bg-background/90 p-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
+                item.priority <= 1 ? "border-primary/30" : "border-border/70",
+              )}
+            >
+              <div className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary/80" />
+              <div className="min-w-0 pl-2 sm:pl-3">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary">
+                    Priority {index + 1}
+                  </Badge>
+                  <StatusBadge tone={item.tone}>{item.statusLabel}</StatusBadge>
                 </div>
+                <p className="text-sm font-semibold leading-5 text-foreground">
+                  {getQueuePrimaryText(item.article)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{getQueueSecondaryText(item.article)}</p>
               </div>
 
-              <Button asChild size="sm" className="self-start sm:self-auto">
+              <Button asChild size="sm" variant={item.priority <= 1 ? "default" : "outline"} className="self-start sm:self-auto">
                 <Link to={item.actionTo}>
                   {item.actionLabel}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-            </article>
+            </li>
           ))}
-        </div>
+        </ol>
       </DashboardSection>
 
       <DashboardSection
         title="Recent Activity"
         subtitle="Most recently updated records."
+        variant="subtle"
+        compact
       >
         <div className="grid gap-2 lg:grid-cols-2">
           {recentActivity.map((article) => (
             <Link
               key={article.id}
               to={`/articles/${article.id}`}
-              className="rounded-lg border bg-background/80 p-3 transition-colors hover:bg-muted/40"
+              className="rounded-lg border border-border/70 bg-background/80 p-3 transition-colors hover:bg-muted/40"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{article.title || article.first_author || article.author || "Untitled"}</p>
-                  <p className="text-sm text-muted-foreground">{formatActivityDate(article.created_at)}</p>
+                  <p className="text-sm font-medium leading-5 text-foreground">{article.title || article.first_author || article.author || "Untitled"}</p>
+                  <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {formatActivityDate(article.created_at)}
+                  </p>
                 </div>
                 {article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : <StatusBadge tone="success">Saved</StatusBadge>}
               </div>
@@ -260,14 +313,38 @@ function StatCard({
   value,
   helper,
   tone,
+  to,
 }: {
   icon: LucideIcon;
   label: string;
   value: string | number;
   helper: string;
   tone: "default" | "warning" | "success";
+  to?: string;
 }) {
-  const iconTone = tone === "warning" ? "bg-warning/20 text-warning-foreground" : tone === "success" ? "bg-accent/20 text-accent" : "bg-primary/10 text-primary";
+  const iconTone = tone === "warning"
+    ? "bg-warning/20 text-warning-foreground"
+    : tone === "success"
+      ? "bg-success/15 text-success"
+      : "bg-primary/10 text-primary";
+  if (to) {
+    return (
+      <Card className="h-full border-border/80 transition-colors hover:border-primary/40 hover:bg-primary/5">
+        <Link to={to} className="block">
+          <CardContent className="flex items-center gap-4 py-4">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconTone}`}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">{label}</p>
+              <p className="mt-1 text-sm text-muted-foreground/90">{helper}</p>
+            </div>
+          </CardContent>
+        </Link>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-full border-border/80">
@@ -288,7 +365,7 @@ function StatCard({
 function StatusBadge({ tone, children }: { tone: "warning" | "success"; children: string }) {
   const className = tone === "warning"
     ? "border-warning/40 bg-warning/20 text-warning-foreground"
-    : "border-accent/40 bg-accent/15 text-accent";
+    : "border-success/40 bg-success/15 text-success";
 
   return (
     <Badge variant="outline" className={className}>
