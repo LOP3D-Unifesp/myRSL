@@ -48,9 +48,9 @@ const AppSidebar = () => {
 
       <nav className="flex-1 space-y-1.5 px-2.5 py-3.5">
         {navItems.map(({ to, icon: Icon, label }) => {
-          const isActive = location.pathname === to ||
-            (to === "/articles" && location.pathname === "/articles") ||
-            (to !== "/" && to !== "/articles" && location.pathname.startsWith(to));
+          const isActive = to === "/"
+            ? location.pathname === "/"
+            : location.pathname === to || location.pathname.startsWith(to + "/");
 
           return (
             <NavLink

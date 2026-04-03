@@ -78,7 +78,8 @@ const Analytics = () => {
       (a) =>
         a.author?.toLowerCase().includes(term) ||
         String(a.year).includes(term) ||
-        a.country?.toLowerCase().includes(term),
+        a.country?.toLowerCase().includes(term) ||
+        a.title?.toLowerCase().includes(term),
     );
   }, [articles, search]);
 

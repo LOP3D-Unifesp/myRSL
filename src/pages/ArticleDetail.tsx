@@ -213,6 +213,7 @@ const ArticleDetail = () => {
   const splitColumnsStyle = desktopPanelOpen
     ? { gridTemplateColumns: `${leftPanePercent}fr 16px ${100 - leftPanePercent}fr` }
     : undefined;
+  const articleTitle = article.title || article.first_author || article.author || "Untitled";
   const primaryQuestion = article.primary_research_question?.trim() || null;
   const researchQuestions = article.research_questions ?? [];
 
@@ -234,7 +235,7 @@ const ArticleDetail = () => {
                   {article.country ? <Badge variant="secondary">{article.country}</Badge> : null}
                 </div>
                 <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-foreground md:text-3xl">{article.title || "Untitled article"}</h1>
+                  <h1 className="text-2xl font-bold text-foreground md:text-3xl">{articleTitle}</h1>
                   <p className="text-base text-muted-foreground">{citationLabel}</p>
                   <div className="mt-4 space-y-3">
                     <div className="space-y-1.5">
@@ -513,7 +514,7 @@ const ArticleDetail = () => {
                     if (!pdfAccessUrl) return;
                     const link = document.createElement("a");
                     link.href = pdfAccessUrl;
-                    link.download = `${article.title || "article"}.pdf`;
+                    link.download = `${articleTitle}.pdf`;
                     link.target = "_blank";
                     link.click();
                   }}
@@ -573,7 +574,7 @@ const ArticleDetail = () => {
                       </div>
                       {article.pdf_url ? (
                         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                          <PdfChatPanel articleId={article.id} articleTitle={article.title || article.author || "this paper"} />
+                          <PdfChatPanel articleId={article.id} articleTitle={articleTitle} />
                         </div>
                       ) : (
                         <div className="flex flex-1 items-center justify-center px-4 text-center">

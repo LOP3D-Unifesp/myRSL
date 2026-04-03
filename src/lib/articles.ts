@@ -19,6 +19,7 @@ export type ArticleListItem = Pick<
   | "year"
   | "is_draft"
   | "created_at"
+  | "updated_at"
   | "verify_peer1"
   | "verify_peer2"
   | "verify_qa3"
@@ -115,6 +116,10 @@ type SyncOptions = {
   limit?: number;
 };
 
+const CROSSREF_TIMEOUT_MS = 8000;
+const DOI_SYNC_CONCURRENCY = 5;
+const DOI_SYNC_BATCH_DELAY_MS = 300;
+
 export async function fetchArticles() {
   const { data, error } = await supabase.from("articles").select("*").order("created_at", { ascending: false });
   if (error) throw error;
@@ -186,22 +191,36 @@ function parseAuthors(work: CrossrefWork): { author: string | null; firstAuthor:
 }
 
 async function fetchDoiByTitle(title: string): Promise<string | null> {
-  const response = await fetch(`https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(title)}&rows=1`, {
-    headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
-  });
-  if (!response.ok) return null;
-  const data = await response.json();
-  const doi = data?.message?.items?.[0]?.DOI;
-  return typeof doi === "string" && doi.length > 0 ? doi : null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CROSSREF_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(title)}&rows=1`,
+      { headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" }, signal: controller.signal },
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const doi = data?.message?.items?.[0]?.DOI;
+    return typeof doi === "string" && doi.length > 0 ? doi : null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchCrossrefWorkByDoi(doi: string): Promise<CrossrefWork | null> {
-  const response = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, {
-    headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
-  });
-  if (!response.ok) return null;
-  const data = await response.json();
-  return (data?.message ?? null) as CrossrefWork | null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CROSSREF_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, {
+      headers: { "User-Agent": "SysReview/1.0 (mailto:admin@example.com)" },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return (data?.message ?? null) as CrossrefWork | null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function asConflictString(value: unknown): string {
@@ -271,85 +290,95 @@ export async function syncCurrentUserDoiMetadata(options: SyncOptions = {}): Pro
   const conflicts: MetadataSyncConflict[] = [];
   const conflictQueue: MetadataConflictArticle[] = [];
 
-  for (const article of candidates) {
-    try {
-      let resolvedDoi = article.doi;
-      if (isBlank(resolvedDoi) && !isBlank(article.title)) {
-        resolvedDoi = await fetchDoiByTitle(article.title!);
+  for (let batchStart = 0; batchStart < candidates.length; batchStart += DOI_SYNC_CONCURRENCY) {
+    const batch = candidates.slice(batchStart, batchStart + DOI_SYNC_CONCURRENCY);
+
+    const results = await Promise.allSettled(
+      batch.map(async (article) => {
+        let resolvedDoi = article.doi;
+        if (isBlank(resolvedDoi) && !isBlank(article.title)) {
+          resolvedDoi = await fetchDoiByTitle(article.title!);
+        }
+
+        if (isBlank(resolvedDoi)) return { kind: "missing_source" as const };
+
+        const work = await fetchCrossrefWorkByDoi(resolvedDoi!);
+        if (!work) return { kind: "missing_source" as const };
+
+        const currentSnapshot: DoiReviewSnapshot = {
+          doi: article.doi,
+          title: article.title,
+          year: article.year,
+          author: article.author,
+          first_author: article.first_author,
+          last_author: article.last_author,
+          abstract: article.abstract,
+        };
+        const suggestedSnapshot: DoiReviewSnapshot = {
+          doi: resolvedDoi ?? null,
+          title: work.title?.[0] ?? null,
+          year: extractYearFromWork(work),
+          author: null,
+          first_author: null,
+          last_author: null,
+          abstract: includeAbstract ? cleanAbstract(work.abstract) : null,
+        };
+        const parsedAuthors = parseAuthors(work);
+        suggestedSnapshot.author = parsedAuthors.author;
+        suggestedSnapshot.first_author = parsedAuthors.firstAuthor;
+        suggestedSnapshot.last_author = parsedAuthors.lastAuthor;
+
+        const updatePayload: Partial<ArticleInsert> = {};
+        const articleConflicts: MetadataSyncConflict[] = [];
+        maybeSetField(article.id, "doi", article.doi, suggestedSnapshot.doi, updatePayload, articleConflicts);
+        maybeSetField(article.id, "title", article.title, suggestedSnapshot.title, updatePayload, articleConflicts);
+        maybeSetField(article.id, "year", article.year, suggestedSnapshot.year, updatePayload, articleConflicts);
+        maybeSetField(article.id, "author", article.author, suggestedSnapshot.author, updatePayload, articleConflicts);
+        maybeSetField(article.id, "first_author", article.first_author, suggestedSnapshot.first_author, updatePayload, articleConflicts);
+        maybeSetField(article.id, "last_author", article.last_author, suggestedSnapshot.last_author, updatePayload, articleConflicts);
+        if (includeAbstract) maybeSetField(article.id, "abstract", article.abstract, suggestedSnapshot.abstract, updatePayload, articleConflicts);
+
+        let conflictEntry: MetadataConflictArticle | null = null;
+        if (articleConflicts.length > 0) {
+          conflictEntry = {
+            articleId: article.id,
+            studyId: article.study_id,
+            doiCurrent: article.doi,
+            doiSuggested: suggestedSnapshot.doi,
+            titleCurrent: article.title,
+            current: currentSnapshot,
+            suggested: suggestedSnapshot,
+            fields: articleConflicts.map((c) => ({ field: c.field, currentValue: c.currentValue, suggestedValue: c.suggestedValue })),
+          };
+        }
+
+        const hasUpdates = Object.keys(updatePayload).length > 0;
+        if (hasUpdates) await updateArticle(article.id, updatePayload);
+
+        return { kind: hasUpdates ? ("updated" as const) : ("unchanged" as const), articleConflicts, conflictEntry };
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error("DOI sync failed for article:", result.reason);
+        failed += 1;
+      } else {
+        const { kind } = result.value;
+        if (kind === "missing_source") {
+          missingSource += 1;
+        } else {
+          const { articleConflicts: ac, conflictEntry } = result.value;
+          conflicts.push(...ac);
+          if (conflictEntry) conflictQueue.push(conflictEntry);
+          if (kind === "updated") updatedSafe += 1;
+          else unchanged += 1;
+        }
       }
+    }
 
-      if (isBlank(resolvedDoi)) {
-        missingSource += 1;
-        continue;
-      }
-
-      const work = await fetchCrossrefWorkByDoi(resolvedDoi!);
-      if (!work) {
-        missingSource += 1;
-        continue;
-      }
-
-      const currentSnapshot: DoiReviewSnapshot = {
-        doi: article.doi,
-        title: article.title,
-        year: article.year,
-        author: article.author,
-        first_author: article.first_author,
-        last_author: article.last_author,
-        abstract: article.abstract,
-      };
-      const suggestedSnapshot: DoiReviewSnapshot = {
-        doi: resolvedDoi ?? null,
-        title: work.title?.[0] ?? null,
-        year: extractYearFromWork(work),
-        author: null,
-        first_author: null,
-        last_author: null,
-        abstract: includeAbstract ? cleanAbstract(work.abstract) : null,
-      };
-      const parsedAuthors = parseAuthors(work);
-      suggestedSnapshot.author = parsedAuthors.author;
-      suggestedSnapshot.first_author = parsedAuthors.firstAuthor;
-      suggestedSnapshot.last_author = parsedAuthors.lastAuthor;
-
-      const updatePayload: Partial<ArticleInsert> = {};
-      const conflictStart = conflicts.length;
-      maybeSetField(article.id, "doi", article.doi, suggestedSnapshot.doi, updatePayload, conflicts);
-      maybeSetField(article.id, "title", article.title, suggestedSnapshot.title, updatePayload, conflicts);
-      maybeSetField(article.id, "year", article.year, suggestedSnapshot.year, updatePayload, conflicts);
-      maybeSetField(article.id, "author", article.author, suggestedSnapshot.author, updatePayload, conflicts);
-      maybeSetField(article.id, "first_author", article.first_author, suggestedSnapshot.first_author, updatePayload, conflicts);
-      maybeSetField(article.id, "last_author", article.last_author, suggestedSnapshot.last_author, updatePayload, conflicts);
-      if (includeAbstract) maybeSetField(article.id, "abstract", article.abstract, suggestedSnapshot.abstract, updatePayload, conflicts);
-
-      const articleConflicts = conflicts.slice(conflictStart);
-      if (articleConflicts.length > 0) {
-        conflictQueue.push({
-          articleId: article.id,
-          studyId: article.study_id,
-          doiCurrent: article.doi,
-          doiSuggested: suggestedSnapshot.doi,
-          titleCurrent: article.title,
-          current: currentSnapshot,
-          suggested: suggestedSnapshot,
-          fields: articleConflicts.map((conflict) => ({
-            field: conflict.field,
-            currentValue: conflict.currentValue,
-            suggestedValue: conflict.suggestedValue,
-          })),
-        });
-      }
-
-      if (Object.keys(updatePayload).length === 0) {
-        unchanged += 1;
-        continue;
-      }
-
-      await updateArticle(article.id, updatePayload);
-      updatedSafe += 1;
-      await new Promise((resolve) => setTimeout(resolve, 300));
-    } catch {
-      failed += 1;
+    if (batchStart + DOI_SYNC_CONCURRENCY < candidates.length) {
+      await new Promise((resolve) => setTimeout(resolve, DOI_SYNC_BATCH_DELAY_MS));
     }
   }
 
@@ -386,10 +415,18 @@ export async function fetchArticle(id: string) {
 export async function fetchArticleSummaries() {
   const { data, error } = await supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
+    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleListItem[];
+}
+
+export type ArticleFilterOption = Pick<Article, "id" | "country" | "year">;
+
+export async function fetchFilterOptions(): Promise<ArticleFilterOption[]> {
+  const { data, error } = await supabase.from("articles").select("id,country,year").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data as ArticleFilterOption[];
 }
 
 export async function fetchVerificationSummaries() {
@@ -420,7 +457,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
   const to = from + pageSize - 1;
   let query = supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
+    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
     .range(from, to);
 
   const term = search.trim();

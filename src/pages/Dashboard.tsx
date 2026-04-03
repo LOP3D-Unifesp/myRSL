@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 import DashboardSection from "@/components/layout/DashboardSection";
+import { StatusBadge } from "@/components/article/StatusBadge";
 
 type QueueItem = {
   article: ArticleListItem;
@@ -87,25 +88,27 @@ const Dashboard = () => {
     queryFn: fetchArticleSummaries,
   });
 
-  const totalArticles = articles.length;
-  const draftCount = articles.filter((a) => a.is_draft).length;
-  const pendingVerificationCount = articles.filter((a) => !a.is_draft && !isFullyVerified(a)).length;
-  const uniqueCountries = Object.keys(buildCountryFrequencyMap(articles)).length;
-  const validYearRows = articles.filter((a) => a.year != null);
-  const avgYear = validYearRows.length
-    ? Math.round(validYearRows.reduce((sum, article) => sum + (article.year ?? 0), 0) / validYearRows.length)
-    : 0;
+  const { totalArticles, draftCount, pendingVerificationCount, uniqueCountries, avgYear } = useMemo(() => {
+    const draftCount = articles.filter((a) => a.is_draft).length;
+    const pendingVerificationCount = articles.filter((a) => !a.is_draft && !isFullyVerified(a)).length;
+    const uniqueCountries = Object.keys(buildCountryFrequencyMap(articles)).length;
+    const validYearRows = articles.filter((a) => a.year != null);
+    const avgYear = validYearRows.length
+      ? Math.round(validYearRows.reduce((sum, article) => sum + (article.year ?? 0), 0) / validYearRows.length)
+      : 0;
+    return { totalArticles: articles.length, draftCount, pendingVerificationCount, uniqueCountries, avgYear };
+  }, [articles]);
 
   const workQueue = useMemo(() => {
     return articles
       .map(buildQueueItem)
-      .sort((a, b) => a.priority - b.priority || (new Date(b.article.created_at ?? 0).getTime() - new Date(a.article.created_at ?? 0).getTime()))
+      .sort((a, b) => a.priority - b.priority || (new Date(b.article.updated_at ?? b.article.created_at ?? 0).getTime() - new Date(a.article.updated_at ?? a.article.created_at ?? 0).getTime()))
       .slice(0, 8);
   }, [articles]);
 
   const recentActivity = useMemo(() => {
     return [...articles]
-      .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+      .sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime())
       .slice(0, 6);
   }, [articles]);
 
@@ -294,7 +297,7 @@ const Dashboard = () => {
                   <p className="text-sm font-medium leading-5 text-foreground">{article.title || article.first_author || article.author || "Untitled"}</p>
                   <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Clock3 className="h-3.5 w-3.5" />
-                    {formatActivityDate(article.created_at)}
+                    {formatActivityDate(article.updated_at ?? article.created_at)}
                   </p>
                 </div>
                 {article.is_draft ? <StatusBadge tone="warning">Draft</StatusBadge> : <StatusBadge tone="success">Saved</StatusBadge>}
@@ -362,16 +365,5 @@ function StatCard({
   );
 }
 
-function StatusBadge({ tone, children }: { tone: "warning" | "success"; children: string }) {
-  const className = tone === "warning"
-    ? "border-warning/40 bg-warning/20 text-warning-foreground"
-    : "border-success/40 bg-success/15 text-success";
-
-  return (
-    <Badge variant="outline" className={className}>
-      {children}
-    </Badge>
-  );
-}
 
 export default Dashboard;

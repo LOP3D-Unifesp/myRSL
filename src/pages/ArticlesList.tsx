@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchArticlesPage,
-  fetchArticleSummaries,
+  fetchFilterOptions,
   deleteArticle,
   exportCurrentUserArticlesToExcel,
   type ArticleListItem,
@@ -27,17 +27,7 @@ import { PlusCircle, Search, Pencil, Trash2, FileText, ChevronLeft, ChevronRight
 import { toast } from "sonner";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { StatusBadge } from "@/components/article/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -162,9 +152,9 @@ const ArticlesList = () => {
     queryFn: () => fetchArticlesPage(queryParams),
   });
 
-  const { data: allArticles = [] } = useQuery({
+  const { data: filterOptions = [] } = useQuery({
     queryKey: ["articles", "filters-options"],
-    queryFn: fetchArticleSummaries,
+    queryFn: fetchFilterOptions,
   });
 
   const articles = data?.data ?? [];
@@ -178,27 +168,47 @@ const ArticlesList = () => {
   }, [page, totalPages]);
 
   const countryOptions = useMemo(() => {
-    return Array.from(new Set(allArticles.map((article) => article.country).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b));
-  }, [allArticles]);
+    return Array.from(new Set(filterOptions.map((a) => a.country).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b));
+  }, [filterOptions]);
 
   const yearOptions = useMemo(() => {
-    return Array.from(new Set(allArticles.map((article) => article.year).filter((year): year is number => year != null))).sort((a, b) => b - a);
-  }, [allArticles]);
+    return Array.from(new Set(filterOptions.map((a) => a.year).filter((year): year is number => year != null))).sort((a, b) => b - a);
+  }, [filterOptions]);
 
-  const hasAnyArticles = allArticles.length > 0;
+  const hasAnyArticles = totalCount > 0;
   const advancedFiltersCount = (country !== "all" ? 1 : 0)
     + (yearFrom !== "all" ? 1 : 0)
     + (yearTo !== "all" ? 1 : 0)
     + (qaMin !== "all" ? 1 : 0);
 
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteArticle(id);
-      queryClient.invalidateQueries({ queryKey: ["articles"] });
-      toast.success("Article deleted successfully");
-    } catch {
-      toast.error("Error deleting article");
-    }
+  const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const handleDelete = (id: string) => {
+    const timer = setTimeout(async () => {
+      pendingDeletes.current.delete(id);
+      try {
+        await deleteArticle(id);
+        queryClient.invalidateQueries({ queryKey: ["articles"] });
+      } catch {
+        toast.error("Error deleting article");
+      }
+    }, 5000);
+
+    pendingDeletes.current.set(id, timer);
+
+    toast("Article will be deleted", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const t = pendingDeletes.current.get(id);
+          if (t) {
+            clearTimeout(t);
+            pendingDeletes.current.delete(id);
+          }
+        },
+      },
+      duration: 5000,
+    });
   };
 
   const handleExportExcel = async () => {
@@ -344,7 +354,7 @@ const ArticlesList = () => {
                     </SelectContent>
                   </Select>
 
-                  <Select value={yearFrom} onValueChange={(value) => { setYearFrom(value); setPage(1); }}>
+                  <Select value={yearFrom} onValueChange={(value) => { setYearFrom(value); if (yearTo !== "all" && value !== "all" && Number(value) > Number(yearTo)) setYearTo(value); setPage(1); }}>
                     <SelectTrigger className="h-10 border-border/70"><SelectValue placeholder="Year From" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Year From</SelectItem>
@@ -352,7 +362,7 @@ const ArticlesList = () => {
                     </SelectContent>
                   </Select>
 
-                  <Select value={yearTo} onValueChange={(value) => { setYearTo(value); setPage(1); }}>
+                  <Select value={yearTo} onValueChange={(value) => { setYearTo(value); if (yearFrom !== "all" && value !== "all" && Number(value) < Number(yearFrom)) setYearFrom(value); setPage(1); }}>
                     <SelectTrigger className="h-10 border-border/70"><SelectValue placeholder="Year To" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Year To</SelectItem>
@@ -535,23 +545,9 @@ function ArticleRow({
                 <Pencil className="h-4 w-4" />
               </Link>
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label={`Delete article ${studyId}`}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete article</AlertDialogTitle>
-                  <AlertDialogDescription>This action cannot be undone. The article will be permanently removed.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDelete(article.id)}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button variant="ghost" size="icon" aria-label={`Delete article ${studyId}`} onClick={() => onDelete(article.id)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -559,14 +555,5 @@ function ArticleRow({
   );
 }
 
-function StatusBadge({ tone, children }: { tone: "draft" | "pending" | "verified"; children: string }) {
-  if (tone === "verified") {
-    return <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent">{children}</Badge>;
-  }
-  if (tone === "pending") {
-    return <Badge variant="outline" className="border-warning/35 bg-warning/15 text-[11px] text-warning-foreground">{children}</Badge>;
-  }
-  return <Badge variant="outline" className="text-[11px]">{children}</Badge>;
-}
 
 export default ArticlesList;
