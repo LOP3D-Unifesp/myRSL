@@ -23,17 +23,3 @@ export async function getPdfAccessUrl(pdfRef: string | null | undefined, expires
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
 }
-
-export async function downloadPdfBlob(pdfRef: string): Promise<Blob> {
-  const storagePath = getStoragePathFromPdfRef(pdfRef);
-  if (!storagePath) {
-    const response = await fetch(pdfRef);
-    if (!response.ok) throw new Error("Could not download PDF");
-    return await response.blob();
-  }
-  const { data, error } = await supabase.storage.from(PDF_BUCKET).download(storagePath);
-  if (error || !data) {
-    throw new Error("Could not download PDF");
-  }
-  return data;
-}

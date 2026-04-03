@@ -15,7 +15,6 @@ const requestSchema = z.object({
   pdfBase64: z.string().min(1).max(MAX_BASE64_CHARS),
   fileType: z.string().min(1).max(100),
   fileName: z.string().min(1).max(256).optional().default("article.pdf"),
-  mode: z.enum(["stats_q6_only"]).optional(),
 });
 
 const extractedSchema = z
@@ -96,21 +95,7 @@ async function getAuthenticatedUser(req: Request) {
   return data.user;
 }
 
-function buildPrompt(isSelectiveMode: boolean) {
-  if (isSelectiveMode) {
-    return `You are a research data extraction assistant for pediatric prosthetics systematic reviews.
-Extract ONLY the requested JSON keys below. Return valid JSON only.
-
-{
-  "statistical_tests_performed": "Yes | No | Not reported / Unclear | null. Inferential tests only.",
-  "statistical_tests_specified": "Inferential tests only, or N/A, or null.",
-  "quantitative_results": "string or null. Include supporting quote in parentheses.",
-  "primary_research_question": "Q1 – Main (Geral) | Q2 – Technology and Design | Q3 – Usability and Acceptance | Q4 – Functional and Clinical Outcomes | Q5 – Pediatric-Specific Needs and Gaps | Q6 – Technical Challenges and Barriers | null",
-  "research_questions": ["array of Q1..Q6"],
-  "technical_challenges": "string or null. Format each item as '- Challenge: ... -> Solution: ...'"
-}`;
-  }
-
+function buildPrompt() {
   return `You are a research data extraction assistant for pediatric prosthetics systematic reviews.
 Extract structured data from the provided PDF. Return valid JSON only.
 
@@ -151,7 +136,7 @@ serve(async (req) => {
       return jsonResponse(req, { error: parsed.error.issues[0]?.message || "Invalid request payload." }, 400);
     }
 
-    const { pdfBase64, fileName, fileType, mode } = parsed.data;
+    const { pdfBase64, fileName, fileType } = parsed.data;
     if (fileType.toLowerCase() !== "application/pdf") {
       return jsonResponse(req, { error: "Invalid file MIME type. Expected application/pdf." }, 400);
     }
@@ -169,11 +154,8 @@ serve(async (req) => {
       return jsonResponse(req, { error: "GEMINI_API_KEY is not configured" }, 500);
     }
 
-    const isSelectiveMode = mode === "stats_q6_only";
-    const systemPrompt = buildPrompt(isSelectiveMode);
-    const userMessage = isSelectiveMode
-      ? `Extract only inferential statistics and Q1-Q6 classification from this PDF: ${normalizedFileName}`
-      : `Extract structured data from this PDF: ${normalizedFileName}`;
+    const systemPrompt = buildPrompt();
+    const userMessage = `Extract structured data from this PDF: ${normalizedFileName}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60_000);
@@ -238,3 +220,4 @@ serve(async (req) => {
     return jsonResponse(req, { error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });
+

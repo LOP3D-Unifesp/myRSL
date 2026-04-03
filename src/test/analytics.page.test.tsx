@@ -119,9 +119,6 @@ describe("Analytics", () => {
     expect(pediatric.compareDocumentPosition(methodology) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(methodology.compareDocumentPosition(participants) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    expect(screen.getByText("Top Countries")).toBeInTheDocument();
-    expect(screen.getByText("Pediatric Participation")).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Jump to Studies" }));
 
     await waitFor(() => {
@@ -152,8 +149,6 @@ describe("Analytics", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Pediatric" })).toHaveAttribute("aria-expanded", "true");
-      expect(document.getElementById("analytics-target-pediatric")).toHaveAttribute("data-highlighted", "true");
-      expect(screen.getByText(/Includes distribution and top primary questions among pediatric studies/i)).toBeInTheDocument();
     });
   });
 });

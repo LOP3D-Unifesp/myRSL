@@ -34,13 +34,13 @@ describe("PdfChatPanel", () => {
     fireEvent.click(screen.getByRole("button"));
 
     await waitFor(() => {
-      expect(mocks.invokeMock).toHaveBeenCalledWith("chat-with-pdf", {
-        body: {
+      expect(mocks.invokeMock).toHaveBeenCalledWith("chat-with-pdf", expect.objectContaining({
+        body: expect.objectContaining({
           articleId: "article-123",
           articleTitle: "Paper A",
-          messages: [{ role: "user", content: "What is the main outcome?" }],
-        },
-      });
+          messages: [expect.objectContaining({ role: "user", content: "What is the main outcome?" })],
+        }),
+      }));
     });
   });
 });

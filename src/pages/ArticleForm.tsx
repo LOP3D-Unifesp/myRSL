@@ -10,9 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Save, ArrowLeft, ChevronLeft, ChevronRight, Upload, Loader2, RefreshCw } from "lucide-react";
+import { Save, ArrowLeft, ChevronLeft, ChevronRight, Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadPdfBlob } from "@/lib/pdf-storage";
 import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import {
   STUDY_DESIGNS, PUBLICATION_TYPES, AMPUTATION_CAUSES,
@@ -51,7 +50,6 @@ const ArticleForm = () => {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(0);
   const [extracting, setExtracting] = useState(false);
-  const [reExtracting, setReExtracting] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [form, setForm] = useState<FormData>({
     is_draft: true,
@@ -191,59 +189,6 @@ const ArticleForm = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSelectiveReExtraction = async () => {
-    if (!form.pdf_url && !pdfFile) {
-      toast.error("No PDF available for re-extraction. Upload a PDF first.");
-      return;
-    }
-    setReExtracting(true);
-    try {
-      let base64: string;
-      if (pdfFile) {
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(pdfFile);
-        });
-      } else {
-        const blob = await downloadPdfBlob(form.pdf_url!);
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      }
-
-      const { data, error } = await supabase.functions.invoke("extract-pdf", {
-        body: { pdfBase64: base64, fileName: form.title || "article.pdf", fileType: "application/pdf", mode: "stats_q6_only" },
-      });
-      if (error) {
-        const message = await getExtractPdfErrorMessage(error);
-        throw new Error(message);
-      }
-      if (data?.extracted) {
-        const selective = sanitizeExtractedArticle(data.extracted);
-        setForm((prev) => ({
-          ...prev,
-          ...(selective.statistical_tests_performed !== undefined && { statistical_tests_performed: selective.statistical_tests_performed }),
-          ...(selective.statistical_tests_specified !== undefined && { statistical_tests_specified: selective.statistical_tests_specified }),
-          ...(selective.quantitative_results !== undefined && { quantitative_results: selective.quantitative_results }),
-          ...(selective.primary_research_question !== undefined && { primary_research_question: selective.primary_research_question }),
-          ...(selective.research_questions !== undefined && { research_questions: selective.research_questions }),
-          ...(selective.technical_challenges !== undefined && { technical_challenges: selective.technical_challenges }),
-        }));
-        toast.success("Stats and Q6 fields updated from PDF. Review and save.");
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Re-extraction failed";
-      toast.error(message);
-    } finally {
-      setReExtracting(false);
-    }
-  };
-
   const hasParticipants = form.has_pediatric_participants === "Yes";
   const noParticipants = form.has_pediatric_participants === "No";
 
@@ -257,12 +202,6 @@ const ArticleForm = () => {
             <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="mr-1 h-4 w-4" /> Back
             </Button>
-            {isEditing && (form.pdf_url || pdfFile) ? (
-              <Button variant="outline" onClick={handleSelectiveReExtraction} disabled={reExtracting}>
-                {reExtracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                {reExtracting ? "Re-extracting..." : "Update Stats and Q6"}
-              </Button>
-            ) : null}
             <label className="cursor-pointer">
               <input type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} disabled={extracting} />
               <Button variant="outline" asChild disabled={extracting}>

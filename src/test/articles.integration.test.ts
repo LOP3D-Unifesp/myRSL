@@ -41,13 +41,13 @@ describe("articles integration with supabase client", () => {
     });
   });
 
-  it("maps first_author to legacy author on create", async () => {
+  it("persists first_author on create", async () => {
     await createArticle({ first_author: "Alice", title: "Paper" });
 
     expect(mocks.insertMock).toHaveBeenCalledTimes(1);
     const payload = mocks.insertMock.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.first_author).toBe("Alice");
-    expect(payload.author).toBe("Alice");
+    expect(payload.author).toBeUndefined();
     expect(payload.user_id).toBe("user-1");
   });
 
