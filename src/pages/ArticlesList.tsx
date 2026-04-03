@@ -8,9 +8,16 @@ import {
   type ArticleListItem,
   type ArticleListSort,
   type ArticleListStatus,
-  type ArticleListVerificationFilter,
 } from "@/lib/articles";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import {
+  VERIFICATION_STAGES,
+  countCompletedVerifications,
+  isFullyVerified,
+  parseVerificationFilters,
+  serializeVerificationFilters,
+  type VerificationKey,
+} from "@/lib/article-verification";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,12 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const PAGE_SIZE = 20;
-const VERIFICATION_FILTERS = [
-  { key: "verify_peer1" as const, label: "Peer 1" },
-  { key: "verify_peer2" as const, label: "Peer 2" },
-  { key: "verify_qa3" as const, label: "QA 3" },
-  { key: "verify_qa4" as const, label: "QA 4" },
-];
+const VERIFICATION_FILTERS = VERIFICATION_STAGES.map(({ key, label }) => ({ key, label }));
 const STATUS_FILTERS: Array<{ key: ArticleListStatus; label: string }> = [
   { key: "all", label: "All" },
   { key: "verified", label: "Verified" },
@@ -49,7 +51,7 @@ const STATUS_FILTERS: Array<{ key: ArticleListStatus; label: string }> = [
 ];
 const qaOptions = ["all", "0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"];
 
-type VerificationFilterKey = (typeof VERIFICATION_FILTERS)[number]["key"];
+type VerificationFilterKey = VerificationKey;
 
 function parsePositiveInt(value: string | null, fallback = 1): number {
   const parsed = Number(value);
@@ -76,28 +78,6 @@ function parseYearParam(value: string | null): string {
   if (!value || value === "all") return "all";
   const parsed = Number(value);
   return Number.isFinite(parsed) ? String(Math.trunc(parsed)) : "all";
-}
-
-function parseVerificationFilters(raw: string | null): Set<VerificationFilterKey> {
-  if (!raw) return new Set();
-  const allowed = new Set(VERIFICATION_FILTERS.map((filter) => filter.key));
-  return new Set(
-    raw
-      .split(",")
-      .map((item) => item.trim())
-      .filter((item): item is VerificationFilterKey => allowed.has(item as VerificationFilterKey)),
-  );
-}
-
-function serializeVerificationFilters(filters: Set<VerificationFilterKey>): string {
-  return VERIFICATION_FILTERS
-    .map((filter) => filter.key)
-    .filter((key) => filters.has(key))
-    .join(",");
-}
-
-function isFullyVerified(article: ArticleListItem): boolean {
-  return Boolean(article.verify_peer1 && article.verify_peer2 && article.verify_qa3 && article.verify_qa4);
 }
 
 const ArticlesList = () => {
@@ -172,7 +152,7 @@ const ArticlesList = () => {
       yearTo: Number.isFinite(yearToNumber) ? yearToNumber : null,
       qaMin: Number.isFinite(qaMinNumber) ? qaMinNumber : null,
       status,
-      verificationFilters: Array.from(verificationFilters) as ArticleListVerificationFilter[],
+      verificationFilters: Array.from(verificationFilters),
       sort,
     };
   }, [country, page, qaMin, search, sort, status, verificationFilters, yearFrom, yearTo]);
@@ -479,7 +459,14 @@ function ArticleRow({
   fromPath: string;
   navigate: ReturnType<typeof useNavigate>;
 }) {
-  const verified = isFullyVerified(article);
+  const verificationValues = {
+    verify_peer1: article.verify_peer1,
+    verify_peer2: article.verify_peer2,
+    verify_qa3: article.verify_qa3,
+    verify_qa4: article.verify_qa4,
+  };
+  const verified = isFullyVerified(verificationValues);
+  const verificationProgress = countCompletedVerifications(verificationValues);
   const studyId = article.study_id || "No Study ID";
   const authorLabel = formatCompactAuthors(article.author, article.first_author);
   const metaLine = [authorLabel, article.country].filter(Boolean).join(" - ");
@@ -528,10 +515,17 @@ function ArticleRow({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">{metaLine || "No metadata"}</span>
               {article.qa_score != null ? <Badge variant="secondary" className="text-[11px] font-mono">QA: {article.qa_score}/10</Badge> : null}
-              {article.verify_peer1 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />P1</Badge> : null}
-              {article.verify_peer2 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />P2</Badge> : null}
-              {article.verify_qa3 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q3</Badge> : null}
-              {article.verify_qa4 ? <Badge variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q4</Badge> : null}
+              <Badge variant="outline" className="text-[11px]">
+                {verificationProgress}/4 checks
+              </Badge>
+              {VERIFICATION_STAGES.map(({ key, badgeLabel }) => (
+                verificationValues[key] ? (
+                  <Badge key={key} variant="outline" className="border-accent/40 bg-accent/5 text-[11px] text-accent">
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    {badgeLabel}
+                  </Badge>
+                ) : null
+              ))}
             </div>
           </div>
 

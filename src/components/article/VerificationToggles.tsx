@@ -1,15 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type VerificationKey = "verify_peer1" | "verify_peer2" | "verify_qa3" | "verify_qa4";
-
-const VERIFICATIONS: { key: VerificationKey; label: string }[] = [
-  { key: "verify_peer1", label: "Peer 1" },
-  { key: "verify_peer2", label: "Peer 2" },
-  { key: "verify_qa3", label: "QA 3" },
-  { key: "verify_qa4", label: "QA 4" },
-];
+import { VERIFICATION_STAGES, type VerificationKey } from "@/lib/article-verification";
 
 interface Props {
   values: Record<VerificationKey, boolean>;
@@ -18,8 +10,8 @@ interface Props {
 
 const VerificationToggles = ({ values, onToggle }: Props) => {
   return (
-    <div className="flex flex-wrap gap-2">
-      {VERIFICATIONS.map(({ key, label }) => {
+    <div className="grid grid-cols-2 gap-2">
+      {VERIFICATION_STAGES.map(({ key, label }) => {
         const active = values[key];
         return (
           <Button
@@ -27,7 +19,7 @@ const VerificationToggles = ({ values, onToggle }: Props) => {
             size="sm"
             variant={active ? "default" : "outline"}
             className={cn(
-              "transition-colors",
+              "w-full justify-start transition-colors",
               active && "border-accent bg-accent text-accent-foreground hover:bg-accent/90"
             )}
             onClick={() => onToggle(key)}

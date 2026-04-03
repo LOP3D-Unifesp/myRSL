@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchVerificationSummaries, type VerificationListItem } from "@/lib/articles";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { VERIFICATION_STAGES, parseVerificationFilters, serializeVerificationFilters, type VerificationKey } from "@/lib/article-verification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -10,35 +11,8 @@ import { CheckCircle, ShieldCheck } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
 
-const FILTERS = [
-  { key: "verify_peer1" as const, label: "Peer 1" },
-  { key: "verify_peer2" as const, label: "Peer 2" },
-  { key: "verify_qa3" as const, label: "QA 3" },
-  { key: "verify_qa4" as const, label: "QA 4" },
-];
-type FilterKey = (typeof FILTERS)[number]["key"];
-const FILTER_KEYS = new Set(FILTERS.map((f) => f.key));
-
-function isFilterKey(value: string): value is FilterKey {
-  return FILTER_KEYS.has(value as FilterKey);
-}
-
-function parseFilterParam(raw: string | null): Set<FilterKey> {
-  if (!raw) return new Set();
-  return new Set(
-    raw
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value): value is FilterKey => isFilterKey(value)),
-  );
-}
-
-function serializeFilters(selected: Set<FilterKey>): string {
-  return FILTERS
-    .map((filter) => filter.key)
-    .filter((key) => selected.has(key))
-    .join(",");
-}
+const FILTERS = VERIFICATION_STAGES.map(({ key, label }) => ({ key, label }));
+type FilterKey = VerificationKey;
 
 function areSetsEqual(a: Set<FilterKey>, b: Set<FilterKey>): boolean {
   if (a.size !== b.size) return false;
@@ -52,14 +26,14 @@ const Verifications = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selected, setSelected] = useState<Set<FilterKey>>(() => parseFilterParam(searchParams.get("filters")));
+  const [selected, setSelected] = useState<Set<FilterKey>>(() => parseVerificationFilters(searchParams.get("filters")));
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ["articles"],
     queryFn: fetchVerificationSummaries,
   });
 
   useEffect(() => {
-    const next = parseFilterParam(searchParams.get("filters"));
+    const next = parseVerificationFilters(searchParams.get("filters"));
     setSelected((prev) => (areSetsEqual(prev, next) ? prev : next));
   }, [searchParams]);
 
@@ -78,7 +52,7 @@ const Verifications = () => {
       else next.add(key);
 
       const nextParams = new URLSearchParams(searchParams);
-      const serialized = serializeFilters(next);
+      const serialized = serializeVerificationFilters(next);
       if (serialized) nextParams.set("filters", serialized);
       else nextParams.delete("filters");
       setSearchParams(nextParams, { replace: true });
@@ -155,10 +129,14 @@ const Verifications = () => {
                     </p>
                   </div>
                   <div className="ml-4 flex shrink-0 flex-wrap gap-1.5">
-                    {a.verify_peer1 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />P1</Badge> : null}
-                    {a.verify_peer2 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />P2</Badge> : null}
-                    {a.verify_qa3 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q3</Badge> : null}
-                    {a.verify_qa4 ? <Badge variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent"><CheckCircle className="mr-1 h-3 w-3" />Q4</Badge> : null}
+                    {VERIFICATION_STAGES.map(({ key, badgeLabel }) => (
+                      a[key] ? (
+                        <Badge key={key} variant="outline" className="border-accent/50 bg-accent/10 text-xs text-accent">
+                          <CheckCircle className="mr-1 h-3 w-3" />
+                          {badgeLabel}
+                        </Badge>
+                      ) : null
+                    ))}
                     {a.qa_score != null ? <Badge variant="secondary" className="text-xs font-mono">QA: {a.qa_score}/10</Badge> : null}
                   </div>
                 </div>

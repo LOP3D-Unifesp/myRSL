@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { sanitizeArticleWriteInput, type ArticleWriteInput } from "@/lib/article-schemas";
 import { buildArticlesWorkbookArrayBuffer, createArticlesExportFileName } from "@/lib/articles-export";
+import { VERIFICATION_KEYS, type VerificationKey } from "@/lib/article-verification";
 
 export type Article = Database["public"]["Tables"]["articles"]["Row"];
 export type ArticleInsert = Omit<Article, "id" | "created_at" | "updated_at">;
@@ -32,7 +33,7 @@ export type VerificationListItem = Pick<
 
 export type ArticleListSort = "recent_desc" | "year_desc" | "year_asc" | "qa_desc" | "qa_asc";
 export type ArticleListStatus = "all" | "verified" | "pending" | "draft";
-export type ArticleListVerificationFilter = "verify_peer1" | "verify_peer2" | "verify_qa3" | "verify_qa4";
+export type ArticleListVerificationFilter = VerificationKey;
 
 export type FetchArticlesPageParams = {
   page: number;
@@ -453,16 +454,14 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
   if (status === "draft") {
     query = query.eq("is_draft", true);
   } else if (status === "verified") {
-    query = query
-      .eq("is_draft", false)
-      .eq("verify_peer1", true)
-      .eq("verify_peer2", true)
-      .eq("verify_qa3", true)
-      .eq("verify_qa4", true);
+    query = query.eq("is_draft", false);
+    for (const verificationKey of VERIFICATION_KEYS) {
+      query = query.eq(verificationKey, true);
+    }
   } else if (status === "pending") {
     query = query
       .eq("is_draft", false)
-      .or("verify_peer1.is.false,verify_peer2.is.false,verify_qa3.is.false,verify_qa4.is.false");
+      .or(VERIFICATION_KEYS.map((key) => `${key}.is.false`).join(","));
   }
 
   for (const verificationFilter of verificationFilters) {

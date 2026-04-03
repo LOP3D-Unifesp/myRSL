@@ -65,7 +65,7 @@ describe("Verifications", () => {
     render(<RouterProvider router={router} />);
 
     expect(screen.getByRole("checkbox", { name: /Peer 2/i })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: /QA 4/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /QA P2/i })).toBeChecked();
     expect(screen.getByText("1 article(s) found")).toBeInTheDocument();
   });
 
@@ -93,7 +93,7 @@ describe("Verifications", () => {
 
     render(<RouterProvider router={router} />);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /QA 4/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /QA P2/i }));
 
     await waitFor(() => {
       expect(screen.getByTestId("search")).toHaveTextContent("?filters=verify_peer2");

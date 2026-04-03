@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchArticleSummaries, syncCurrentUserDoiMetadata, type ArticleListItem } from "@/lib/articles";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { isFullyVerified } from "@/lib/article-verification";
 import { saveDoiConflictReviewState } from "@/lib/doi-conflict-review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,10 +20,6 @@ type QueueItem = {
   actionLabel: "Continue" | "Review" | "Open";
   actionTo: string;
 };
-
-function isFullyVerified(article: ArticleListItem): boolean {
-  return Boolean(article.verify_peer1 && article.verify_peer2 && article.verify_qa3 && article.verify_qa4);
-}
 
 function buildQueueItem(article: ArticleListItem): QueueItem {
   if (article.is_draft) {

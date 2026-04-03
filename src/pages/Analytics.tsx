@@ -65,11 +65,12 @@ const Analytics = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filtered]);
+  const allCountriesCount = useMemo(() => Object.keys(buildCountryFrequencyMap(filtered)).length, [filtered]);
 
   const totalStudies = filtered.length;
   const years = filtered.map((a) => a.year).filter((value): value is number => value != null);
   const yearRange = years.length > 0 ? `${Math.min(...years)} - ${Math.max(...years)}` : "N/A";
-  const countriesCount = countryData.length;
+  const countriesCount = allCountriesCount;
   const pediatricYes = filtered.filter((a) => a.has_pediatric_participants === "Yes").length;
   const pediatricRate = totalStudies > 0 ? Math.round((pediatricYes / totalStudies) * 100) : 0;
 
@@ -104,7 +105,7 @@ const Analytics = () => {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <KpiCard icon={<Files className="h-4 w-4 text-primary" />} label="Studies" value={String(totalStudies)} />
                 <KpiCard icon={<CalendarRange className="h-4 w-4 text-primary" />} label="Year Range" value={yearRange} />
-                <KpiCard icon={<Globe2 className="h-4 w-4 text-primary" />} label="Countries (Top list)" value={String(countriesCount)} />
+                <KpiCard icon={<Globe2 className="h-4 w-4 text-primary" />} label="Countries" value={String(countriesCount)} />
                 <KpiCard icon={<Baby className="h-4 w-4 text-primary" />} label="Pediatric Studies" value={`${pediatricRate}%`} />
               </div>
 
@@ -113,7 +114,7 @@ const Analytics = () => {
                   <VerticalBarChart data={yearData} dataKey="value" xKey="name" color="hsl(var(--chart-1))" />
                 </ChartCard>
 
-                <ChartCard title="Top Countries" subtitle="Top 10 countries by number of studies.">
+                <ChartCard title="Top Countries" subtitle={`Top 10 countries by number of studies (out of ${countriesCount}).`}>
                   <HorizontalRankChart data={countryData} barColor="hsl(var(--chart-5))" />
                 </ChartCard>
 
