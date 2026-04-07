@@ -182,7 +182,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
         <TextField label="Authors (all, separated by ;)" value={form.author} onChange={(v) => setForm((p) => ({ ...p, author: v }))} rows={3} />
         <Field label="First Author" value={form.first_author} onChange={(v) => setForm((p) => ({ ...p, first_author: v }))} />
         <Field label="Last Author" value={form.last_author} onChange={(v) => setForm((p) => ({ ...p, last_author: v }))} />
-        <Field label="Universities or Research Centers" value={form.universities} onChange={(v) => setForm((p) => ({ ...p, universities: v }))} />
+        <TextField label="Universities or Research Centers" value={form.universities} onChange={(v) => setForm((p) => ({ ...p, universities: v }))} rows={4} />
         <Field label="Country" value={form.country} onChange={(v) => setForm((p) => ({ ...p, country: v }))} />
         <Field label="Year of Publication" value={form.year} onChange={(v) => setForm((p) => ({ ...p, year: v }))} />
         <Field label="Place of Publication (journal or conference)" value={form.publication_place} onChange={(v) => setForm((p) => ({ ...p, publication_place: v }))} />

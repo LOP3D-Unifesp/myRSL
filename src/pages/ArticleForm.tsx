@@ -11,9 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Save, ArrowLeft, ChevronLeft, ChevronRight, Upload, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import {
   STUDY_DESIGNS, PUBLICATION_TYPES, AMPUTATION_CAUSES,
   AMPUTATION_LEVELS, CONTROL_STRATEGIES, SENSORS,
@@ -25,7 +24,6 @@ import PageHeader from "@/components/layout/PageHeader";
 import { useAuthUserId } from "@/contexts/auth-user-id";
 
 type FormData = Partial<ArticleInsert>;
-type ExtractFunctionError = { message?: string; context?: Response };
 
 const STEPS = [
   "General Information",
@@ -52,7 +50,6 @@ const ArticleForm = () => {
   const isEditing = Boolean(id);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(0);
-  const [extracting, setExtracting] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [form, setForm] = useState<FormData>({
     is_draft: true,
@@ -97,22 +94,6 @@ const ArticleForm = () => {
     return filePath;
   };
 
-  const getExtractPdfErrorMessage = async (error: unknown) => {
-    const extractError = error as ExtractFunctionError;
-    const fallback = extractError?.message || "Error extracting PDF";
-    const response = extractError?.context;
-    if (!(response instanceof Response)) return fallback;
-    const status = response.status;
-    let payload: { error?: string } | null = null;
-    try {
-      payload = await response.clone().json();
-    } catch {
-      payload = null;
-    }
-    if (status === 402) return payload?.error || "AI credits exhausted. Please add credits in Settings and try again.";
-    return payload?.error || fallback;
-  };
-
   const handleSubmit = async (draft: boolean) => {
     setSaving(true);
     try {
@@ -147,7 +128,7 @@ const ArticleForm = () => {
     }
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type !== "application/pdf") {
@@ -155,41 +136,6 @@ const ArticleForm = () => {
       return;
     }
     setPdfFile(file);
-    setExtracting(true);
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = (reader.result as string).split(",")[1];
-        const { data, error } = await supabase.functions.invoke("extract-pdf", {
-          body: { pdfBase64: base64, fileName: file.name, fileType: file.type },
-        });
-        if (error) {
-          const message = await getExtractPdfErrorMessage(error);
-          throw new Error(message);
-        }
-        if (data?.extracted) {
-          const sanitizedExtracted = sanitizeExtractedArticle(data.extracted);
-          setForm((prev) => ({
-            ...prev,
-            ...sanitizedExtracted,
-            first_author: sanitizedExtracted.first_author !== undefined ? sanitizedExtracted.first_author : prev.first_author,
-            author: sanitizedExtracted.author !== undefined ? sanitizedExtracted.author : prev.author,
-          }));
-          toast.success("PDF data extracted. Please review and edit before saving.");
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Error extracting PDF";
-        toast.error(message);
-      } finally {
-        setExtracting(false);
-      }
-    };
-    reader.onerror = () => {
-      toast.error("Could not read the PDF file");
-      setExtracting(false);
-    };
-    reader.readAsDataURL(file);
   };
 
   const hasParticipants = form.has_pediatric_participants === "Yes";
@@ -206,11 +152,11 @@ const ArticleForm = () => {
               <ArrowLeft className="mr-1 h-4 w-4" /> Back
             </Button>
             <label className="cursor-pointer">
-              <input type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} disabled={extracting} />
-              <Button variant="outline" asChild disabled={extracting}>
+              <input type="file" accept=".pdf" className="hidden" onChange={handlePdfSelect} />
+              <Button variant="outline" asChild>
                 <span>
-                  {extracting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                  {extracting ? "Extracting..." : "Upload PDF"}
+                  <Upload className="mr-2 h-4 w-4" />
+                  {pdfFile ? "Trocar PDF" : "Upload PDF"}
                 </span>
               </Button>
             </label>

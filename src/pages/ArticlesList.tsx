@@ -730,34 +730,22 @@ function ArticleRow({
   const authorLabel = formatCompactAuthors(article.author, article.first_author);
   const metaLine = [authorLabel, article.country].filter(Boolean).join(" - ");
 
-  const openArticle = () => {
-    navigate(`/articles/${article.id}`, {
-      state: {
-        from: fromPath,
-        scrollY: window.scrollY,
-      },
-    });
-  };
-
-  const onCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openArticle();
-    }
-  };
-
   return (
     <Card className="border-border/70 bg-card/80 shadow-sm transition-shadow hover:shadow-md">
-      <CardContent
-        className="cursor-pointer py-4"
-        role="link"
-        tabIndex={0}
-        onClick={openArticle}
-        onKeyDown={onCardKeyDown}
-        aria-label={`Open article ${studyId}`}
-      >
+      <CardContent className="py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
+          <Link
+            to={`/articles/${article.id}`}
+            state={{ from: fromPath }}
+            className="min-w-0 flex-1 space-y-2"
+            onClick={(e) => {
+              if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              navigate(`/articles/${article.id}`, {
+                state: { from: fromPath, scrollY: window.scrollY },
+              });
+            }}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <span className="max-w-full truncate text-base font-semibold text-foreground" title={studyId}>{studyId}</span>
               {article.year ? <Badge variant="secondary" className="text-[11px]">{article.year}</Badge> : null}
@@ -786,9 +774,9 @@ function ArticleRow({
                 ) : null
               ))}
             </div>
-          </div>
+          </Link>
 
-          <div className="flex items-center gap-1 self-end sm:self-auto" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+          <div className="flex items-center gap-1 self-end sm:self-auto">
             <Button variant="ghost" size="icon" asChild aria-label={`Edit article ${studyId}`}>
               <Link to={`/articles/${article.id}/edit`}>
                 <Pencil className="h-4 w-4" />

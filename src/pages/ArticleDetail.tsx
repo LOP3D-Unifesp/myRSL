@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchArticle, updateArticle, type ArticleInsert } from "@/lib/articles";
+import { sanitizeExtractedArticle } from "@/lib/article-schemas";
+import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
@@ -34,6 +36,8 @@ const ArticleDetail = () => {
   const isMobile = useIsMobile();
 
   const [pdfAccessUrl, setPdfAccessUrl] = useState<string | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [detailsTab, setDetailsTab] = useState<"overview" | "qa">("overview");
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -82,6 +86,53 @@ const ArticleDetail = () => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, [lastSavedAt]);
+
+  const handleUploadPdf = async (file: File) => {
+    setUploadingPdf(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from("research-pdfs").upload(filePath, file, { upsert: false });
+      if (error) throw error;
+      await updateArticle(article!.id, { pdf_url: filePath });
+      invalidate();
+      toast.success("PDF uploaded.");
+    } catch {
+      toast.error("Failed to upload PDF.");
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
+  const handleExtractFromPdf = async () => {
+    if (!pdfAccessUrl) return;
+    setExtracting(true);
+    try {
+      const response = await fetch(pdfAccessUrl);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const { data, error } = await supabase.functions.invoke("extract-pdf", {
+        body: { pdfBase64: base64, fileName: "article.pdf", fileType: "application/pdf" },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.extracted) {
+        const sanitized = sanitizeExtractedArticle(data.extracted);
+        await updateArticle(article!.id, sanitized);
+        invalidate();
+        toast.success("Fields updated from PDF. Please review.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to extract PDF data.");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const handleVerificationToggle = async (key: VerificationKey) => {
     if (!article) return;
@@ -191,7 +242,10 @@ const ArticleDetail = () => {
             <ArticleDetailToolbar
               editorOpen={editorOpen}
               pdfAccessUrl={pdfAccessUrl}
+              hasPdfUrl={!!article.pdf_url}
               articleId={article.id}
+              extracting={extracting}
+              uploadingPdf={uploadingPdf}
               onToggleEditor={() => {
                 if (editorOpen) requestCloseEditor();
                 else {
@@ -200,6 +254,8 @@ const ArticleDetail = () => {
                 }
               }}
               onViewPdf={() => setPdfModalOpen(true)}
+              onUploadPdf={handleUploadPdf}
+              onExtractFromPdf={handleExtractFromPdf}
             />
 
             <div className="mt-4 grid gap-3 lg:grid-cols-12">
