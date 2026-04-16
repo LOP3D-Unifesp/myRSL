@@ -3,13 +3,13 @@ import { type Article } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Building2, FlaskConical, Target, ArrowLeft, Search, ArrowUpDown } from "lucide-react";
+import { Users, Building2, FlaskConical, Target, ArrowLeft, Search, ArrowUpDown, BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { splitAndNormalizeCountries } from "@/lib/country-normalization";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq";
+type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq" | "publication_place";
 type GroupItem = { key: string; name: string; items: Article[] };
 type GroupSort = "count_desc" | "count_asc" | "name_asc" | "name_desc";
 
@@ -50,6 +50,7 @@ function getKeysForMode(article: Article, mode: GroupMode): string[] {
     return countries.length > 0 ? countries : ["Unknown"];
   }
   if (mode === "pediatric") return [article.has_pediatric_participants || "Not reported"];
+  if (mode === "publication_place") return article.publication_place ? [article.publication_place] : ["Unknown"];
   return [article.primary_research_question || "Not assigned"];
 }
 
@@ -104,6 +105,7 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
     country: { label: "Country", icon: <Target className="h-4 w-4" /> },
     pediatric: { label: "Pediatric Participants", icon: <FlaskConical className="h-4 w-4" /> },
     primary_rq: { label: "Primary Research Question", icon: <Target className="h-4 w-4" /> },
+    publication_place: { label: "Journal / Conference", icon: <BookOpen className="h-4 w-4" /> },
   };
 
   const largestGroup = grouped[0];
