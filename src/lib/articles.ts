@@ -41,7 +41,7 @@ export type VerificationListItem = Pick<
 >;
 
 export type ArticleListSort = "recent_desc" | "year_desc" | "year_asc" | "qa_desc" | "qa_asc";
-export type ArticleListStatus = "all" | "verified" | "pending" | "draft";
+export type ArticleListStatus = "all" | "verified" | "pending" | "draft" | "needs_consensus";
 export type ArticleListVerificationFilter = VerificationKey;
 
 export type FetchArticlesPageParams = {
@@ -50,7 +50,6 @@ export type FetchArticlesPageParams = {
   search: string;
   country?: string;
   sourceDatabase?: string;
-  qaStatus?: string;
   yearFrom?: number | null;
   yearTo?: number | null;
   qaMin?: number | null;
@@ -309,7 +308,6 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     search,
     country,
     sourceDatabase,
-    qaStatus,
     yearFrom,
     yearTo,
     qaMin,
@@ -343,10 +341,6 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     query = query.eq("source_database", sourceDatabase);
   }
 
-  if (qaStatus && qaStatus !== "all") {
-    query = query.eq("qa_consensus_status", qaStatus);
-  }
-
   if (yearFrom != null) {
     query = query.gte("year", yearFrom);
   }
@@ -374,6 +368,9 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     query = query
       .eq("is_draft", false)
       .or(VERIFICATION_KEYS.map((key) => `${key}.is.false`).join(","));
+  } else if (status === "needs_consensus") {
+    // Both reviewers finished their QA but the final QA still has undecided items.
+    query = query.eq("qa_consensus_status", "needs_consensus");
   }
 
   for (const verificationFilter of verificationFilters) {

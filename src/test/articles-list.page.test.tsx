@@ -104,17 +104,20 @@ describe("ArticlesList", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Needs consensus")).toBeInTheDocument();
+    // One is the status button, the other the badge on the article.
+    expect(screen.getAllByText("Needs consensus")).toHaveLength(2);
   });
 
-  it("applies the QA status filter from the address", () => {
+  it("has a Needs consensus status button that is pressed from the address", () => {
     render(
-      <MemoryRouter initialEntries={["/articles?qa_status=needs_consensus"]}>
+      <MemoryRouter initialEntries={["/articles?status=needs_consensus"]}>
         <ArticlesList />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("button", { name: "Toggle advanced filters" })).toHaveTextContent("1");
+    const button = screen.getByRole("button", { name: "Needs consensus" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("renders Import Excel action in header", () => {

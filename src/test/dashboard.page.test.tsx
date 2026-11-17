@@ -67,6 +67,23 @@ const fixture = [
     verify_qa3: true,
     verify_qa4: true,
   },
+  {
+    id: "consensus-1",
+    is_draft: false,
+    created_at: "2026-02-27T10:00:00.000Z",
+    author: "Erin",
+    first_author: "Erin",
+    year: 2021,
+    study_id: "S-104",
+    prosthesis_name: "Consensus Hand",
+    title: "Consensus title",
+    country: "Chile",
+    verify_peer1: true,
+    verify_peer2: true,
+    verify_qa3: true,
+    verify_qa4: true,
+    qa_consensus_status: "needs_consensus",
+  },
 ];
 
 vi.mock("@tanstack/react-query", () => ({
@@ -114,8 +131,8 @@ describe("Dashboard", () => {
     expect(peer2Card).toHaveAttribute("href", "/verifications?filters=verify_peer2");
     expect(pendingCard).toHaveAttribute("href", "/verifications");
 
-    expect(within(peer1Card).getByText("3")).toBeInTheDocument();
-    expect(within(peer2Card).getByText("2")).toBeInTheDocument();
+    expect(within(peer1Card).getByText("4")).toBeInTheDocument();
+    expect(within(peer2Card).getByText("3")).toBeInTheDocument();
 
     expect(totalCard.compareDocumentPosition(peer1Card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(peer1Card.compareDocumentPosition(peer2Card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -143,6 +160,10 @@ describe("Dashboard", () => {
     const continueIndex = actionLabels.findIndex((label) => label.includes("Continue"));
     const reviewIndex = actionLabels.findIndex((label) => label.includes("Review"));
 
+    const decideIndex = actionLabels.findIndex((label) => label.includes("Decide"));
+
     expect(continueIndex).toBeLessThan(reviewIndex);
+    expect(reviewIndex).toBeLessThan(decideIndex);
+    expect(within(queueSection).getByText("Needs consensus")).toBeInTheDocument();
   });
 });
