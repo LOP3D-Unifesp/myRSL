@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
@@ -38,6 +38,7 @@ vi.mock("@tanstack/react-query", () => ({
               verify_qa3: true,
               verify_qa4: false,
               qa_score: 7,
+              qa_consensus_status: "needs_consensus",
             },
           ],
           count: 1,
@@ -94,6 +95,33 @@ describe("ArticlesList", () => {
     );
 
     expect(screen.getByRole("button", { name: /Sync DOI Metadata/i })).toBeInTheDocument();
+  });
+
+  it("shows the QA consensus status of an article", () => {
+    render(
+      <MemoryRouter>
+        <ArticlesList />
+      </MemoryRouter>,
+    );
+
+    // One is the status button, the other the badge on the article.
+    expect(screen.getAllByText("Needs consensus")).toHaveLength(2);
+  });
+
+  it("has a Needs consensus button in the Verification row, pressed from the address", () => {
+    render(
+      <MemoryRouter initialEntries={["/articles?needs_consensus=1"]}>
+        <ArticlesList />
+      </MemoryRouter>,
+    );
+
+    const row = screen.getByText("Verification").parentElement as HTMLElement;
+    const button = within(row).getByRole("button", { name: "Needs consensus" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(within(row).getByRole("button", { name: "Peer 1" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
   it("renders Import Excel action in header", () => {

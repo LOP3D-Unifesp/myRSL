@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthUserIdProvider } from "@/contexts/auth-user-id";
+import { CurrentReviewProvider } from "@/contexts/current-review";
 import AuthQuerySync from "@/components/AuthQuerySync";
 import Auth from "./pages/Auth";
 import AppLayout from "./components/AppLayout";
@@ -24,6 +25,8 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ArticlesList = lazy(() => import("./pages/ArticlesList"));
 const ArticleForm = lazy(() => import("./pages/ArticleForm"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail"));
+const Screening = lazy(() => import("./pages/Screening"));
+const Protocol = lazy(() => import("./pages/Protocol"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const DoiConflictReview = lazy(() => import("./pages/DoiConflictReview"));
 const routerBase = import.meta.env.BASE_URL;
@@ -43,7 +46,9 @@ function ProtectedRoutes() {
 
   return (
     <AuthUserIdProvider userId={session.user.id}>
-      <AppLayout />
+      <CurrentReviewProvider>
+        <AppLayout />
+      </CurrentReviewProvider>
     </AuthUserIdProvider>
   );
 }
@@ -84,6 +89,8 @@ const App = () => (
               <Route path="/articles/:id" element={<ArticleDetail />} />
               <Route path="/articles/:id/edit" element={<ArticleForm />} />
               <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
+              <Route path="/screening" element={<Screening />} />
+              <Route path="/protocol" element={<Protocol />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/doi-sync/review" element={<DoiConflictReview />} />
             </Route>

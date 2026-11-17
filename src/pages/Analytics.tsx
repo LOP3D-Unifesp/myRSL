@@ -15,6 +15,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { buildFrequency, buildFrequencyFromNested, topNWithOthers } from "@/lib/analytics-utils";
 import { cn } from "@/lib/utils";
 import { ChartCard } from "@/components/analytics/ChartCard";
+import PrismaFlow from "@/components/analytics/PrismaFlow";
+import { buildPrismaCounts, fetchScreeningRecords } from "@/lib/screening";
+import { fetchProtocolCriteria } from "@/lib/protocol";
+import { protocolKeys } from "@/lib/article-query-keys";
 import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const OverviewSection = lazy(() => import("@/components/analytics/sections/OverviewSection"));
@@ -25,6 +29,7 @@ const ParticipantsTechSection = lazy(() => import("@/components/analytics/sectio
 const HIGHLIGHT_DURATION_MS = 1800;
 
 const ANALYTICS_SECTIONS = {
+  prisma: "prisma",
   cross: "cross",
   overview: "overview",
   geography: "geography",
@@ -79,6 +84,18 @@ const Analytics = () => {
     enabled: Boolean(userId),
   });
 
+  const { data: screeningRecords = [] } = useQuery({
+    queryKey: ["screening-records", userId ?? "no-user"],
+    queryFn: fetchScreeningRecords,
+    enabled: Boolean(userId),
+  });
+  const { data: protocolCriteria = [] } = useQuery({
+    queryKey: [...protocolKeys.protocol(userId), "criteria"],
+    queryFn: fetchProtocolCriteria,
+    enabled: Boolean(userId),
+  });
+  const prismaCounts = useMemo(() => buildPrismaCounts(screeningRecords, protocolCriteria), [screeningRecords, protocolCriteria]);
+
   const filtered = useMemo(() => {
     if (!search) return articles;
     const term = search.toLowerCase();
@@ -87,6 +104,7 @@ const Analytics = () => {
         a.author?.toLowerCase().includes(term) ||
         String(a.year).includes(term) ||
         a.country?.toLowerCase().includes(term) ||
+        a.source_database?.toLowerCase().includes(term) ||
         a.title?.toLowerCase().includes(term),
     );
   }, [articles, search]);
@@ -102,6 +120,7 @@ const Analytics = () => {
   }, [filtered]);
 
   const controlData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.control_strategy)), 8), [filtered]);
+  const databaseData = useMemo(() => buildFrequency(filtered.map((a) => a.source_database || "Not specified")), [filtered]);
   const designData = useMemo(() => topNWithOthers(buildFrequency(filtered.map((a) => a.study_design)), 8), [filtered]);
   const levelData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.amputation_level)), 8), [filtered]);
   const primaryRqData = useMemo(() => topNWithOthers(buildFrequency(filtered.map((a) => a.primary_research_question)), 8), [filtered]);
@@ -238,11 +257,11 @@ const Analytics = () => {
             </div>
           </DashboardSection>
 
-          <DashboardSection title="Explore the Dataset" subtitle="Narrow charts by author, year, or country." variant="subtle" compact>
+          <DashboardSection title="Explore the Dataset" subtitle="Narrow charts by author, year, country, or database." variant="subtle" compact>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Filter by author, year, or country..."
+                placeholder="Filter by author, year, country, or database..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="max-w-md border-border/80 bg-background pl-10"
@@ -252,6 +271,13 @@ const Analytics = () => {
           </DashboardSection>
 
           <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="rounded-xl border border-border/80 bg-card px-4 shadow-sm">
+            <AccordionItem value={ANALYTICS_SECTIONS.prisma}>
+              <AccordionTrigger className="text-base font-semibold">PRISMA flow</AccordionTrigger>
+              <AccordionContent>
+                <PrismaFlow counts={prismaCounts} />
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value={ANALYTICS_SECTIONS.cross}>
               <AccordionTrigger className="text-base font-semibold">Cross-Analysis</AccordionTrigger>
               <AccordionContent>
@@ -278,6 +304,7 @@ const Analytics = () => {
                       yearHighlighted={highlightedTarget === ANALYTICS_TARGETS.year}
                       yearData={yearData}
                       countryData={countryData}
+                      databaseData={databaseData}
                       pediatricData={pediatricData}
                       countriesCount={countriesCount}
                       pediatricSummary={pediatricSummary}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +46,7 @@ describe("ArticleForm", () => {
   it("saves first author without overwriting authors list", async () => {
     mocks.paramsMock = {};
     mocks.createArticleMock.mockResolvedValue({ id: "article-1" });
-    const { container } = render(<ArticleForm />);
+    const { container } = render(<MemoryRouter><ArticleForm /></MemoryRouter>);
 
     const inputs = container.querySelectorAll("input:not([type='file'])");
     const firstAuthorInput = inputs[2] as HTMLInputElement;
@@ -71,7 +72,7 @@ describe("ArticleForm", () => {
     mocks.paramsMock = { id: "article-42" };
     mocks.updateArticleMock.mockResolvedValue({ id: "article-42" });
 
-    render(<ArticleForm />);
+    render(<MemoryRouter><ArticleForm /></MemoryRouter>);
 
     for (let index = 0; index < 5; index += 1) {
       fireEvent.click(screen.getByRole("button", { name: /Next/i }));

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.25.76";
 import { assertBodySize, getClientIp, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
+import { getReviewIdsForUser } from "../_shared/membership.ts";
 import { hasPdfMagicBytes } from "../_shared/pdf.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
@@ -108,11 +109,12 @@ serve(async (req) => {
     }
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    const reviewIds = await getReviewIdsForUser(adminClient, user.id);
     const { data: article, error: articleError } = await adminClient
       .from("articles")
       .select("id,title,pdf_url")
       .eq("id", articleId)
-      .eq("user_id", user.id)
+      .in("review_id", reviewIds)
       .maybeSingle();
     if (articleError || !article?.pdf_url) {
       console.warn(
@@ -129,12 +131,13 @@ serve(async (req) => {
     }
 
     const pdfPath = getStoragePath(article.pdf_url);
-    if (!pdfPath.startsWith(`${user.id}/`)) {
+    // The PDF may live in another member's folder, but it must be a plain storage path.
+    if (pdfPath.split("/").includes("..") || pdfPath.startsWith("/")) {
       console.warn(
         "security_access_denied",
         JSON.stringify({
           endpoint: "chat-with-pdf",
-          reason: "pdf_path_outside_user_scope",
+          reason: "pdf_path_invalid",
           userId: user.id,
           articleId,
           pdfPath,

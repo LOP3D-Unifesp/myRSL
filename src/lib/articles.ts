@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveReviewId } from "@/lib/active-review";
 import type { Database } from "@/integrations/supabase/types";
 import { sanitizeArticleWriteInput, type ArticleWriteInput } from "@/lib/article-schemas";
 import { buildArticlesWorkbookArrayBuffer, createArticlesExportFileName } from "@/lib/articles-export";
@@ -19,6 +20,8 @@ export type ArticleListItem = Pick<
   | "author"
   | "first_author"
   | "study_id"
+  | "source_database"
+  | "qa_consensus_status"
   | "country"
   | "prosthesis_name"
   | "year"
@@ -46,11 +49,14 @@ export type FetchArticlesPageParams = {
   pageSize: number;
   search: string;
   country?: string;
+  sourceDatabase?: string;
   yearFrom?: number | null;
   yearTo?: number | null;
   qaMin?: number | null;
   qaMax?: number | null;
   status?: ArticleListStatus;
+  // Both reviewers finished their QA but the final QA still has undecided items.
+  needsConsensus?: boolean;
   verificationFilters?: ArticleListVerificationFilter[];
   sort?: ArticleListSort;
 };
@@ -109,8 +115,16 @@ type SyncOptions = {
   limit?: number;
 };
 
+// Scope a query to the selected review. RLS already limits rows to reviews the user belongs to;
+// this keeps the lists to the current one when the user is a member of several.
+export function inActiveReview<T>(query: T): T {
+  const reviewId = getActiveReviewId();
+  // The builder type is too deep for a generic constraint, so the call is made through a minimal shape.
+  return reviewId ? ((query as unknown as { eq: (column: string, value: string) => T }).eq("review_id", reviewId)) : query;
+}
+
 export async function fetchArticles() {
-  const { data, error } = await supabase.from("articles").select("*").order("created_at", { ascending: false });
+  const { data, error } = await inActiveReview(supabase.from("articles").select("*")).order("created_at", { ascending: false });
   if (error) throw error;
   return data as Article[];
 }
@@ -264,27 +278,27 @@ export async function fetchArticle(id: string) {
 }
 
 export async function fetchArticleSummaries() {
-  const { data, error } = await supabase
-    .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
-    .order("created_at", { ascending: false });
+  const { data, error } = await inActiveReview(
+    supabase
+      .from("articles")
+      .select("id,title,author,first_author,study_id,source_database,qa_consensus_status,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4"),
+  ).order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleListItem[];
 }
 
-export type ArticleFilterOption = Pick<Article, "id" | "country" | "year">;
+export type ArticleFilterOption = Pick<Article, "id" | "country" | "year" | "source_database">;
 
 export async function fetchFilterOptions(): Promise<ArticleFilterOption[]> {
-  const { data, error } = await supabase.from("articles").select("id,country,year").order("created_at", { ascending: false });
+  const { data, error } = await inActiveReview(supabase.from("articles").select("id,country,year,source_database")).order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleFilterOption[];
 }
 
 export async function fetchVerificationSummaries() {
-  const { data, error } = await supabase
-    .from("articles")
-    .select("id,title,author,year,country,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score")
-    .order("created_at", { ascending: false });
+  const { data, error } = await inActiveReview(
+    supabase.from("articles").select("id,title,author,year,country,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score"),
+  ).order("created_at", { ascending: false });
   if (error) throw error;
   return data as VerificationListItem[];
 }
@@ -295,32 +309,39 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     pageSize,
     search,
     country,
+    sourceDatabase,
     yearFrom,
     yearTo,
     qaMin,
     qaMax,
     status = "all",
+    needsConsensus = false,
     verificationFilters = [],
     sort = "recent_desc",
   } = params;
 
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
-  let query = supabase
-    .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
-    .range(from, to);
+  let query = inActiveReview(
+    supabase
+      .from("articles")
+      .select("id,title,author,first_author,study_id,source_database,qa_consensus_status,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" }),
+  ).range(from, to);
 
   const term = search.trim();
   if (term) {
     const escaped = term.replaceAll("%", "\\%");
     query = query.or(
-      `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
+      `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,source_database.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
     );
   }
 
   if (country && country !== "all") {
     query = query.eq("country", country);
+  }
+
+  if (sourceDatabase && sourceDatabase !== "all") {
+    query = query.eq("source_database", sourceDatabase);
   }
 
   if (yearFrom != null) {
@@ -350,6 +371,10 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     query = query
       .eq("is_draft", false)
       .or(VERIFICATION_KEYS.map((key) => `${key}.is.false`).join(","));
+  }
+
+  if (needsConsensus) {
+    query = query.eq("qa_consensus_status", "needs_consensus");
   }
 
   for (const verificationFilter of verificationFilters) {
@@ -382,9 +407,11 @@ export async function createArticle(article: Partial<ArticleInsert>) {
   if (!user) throw new Error("Not authenticated");
 
   const sanitized: ArticleWriteInput = sanitizeArticleWriteInput(article);
+  const reviewId = getActiveReviewId();
   const payload: Database["public"]["Tables"]["articles"]["Insert"] = {
     ...sanitized,
     user_id: user.id,
+    ...(reviewId ? { review_id: reviewId } : {}),
   };
 
   const { data, error } = await supabase.from("articles").insert(payload).select().single();

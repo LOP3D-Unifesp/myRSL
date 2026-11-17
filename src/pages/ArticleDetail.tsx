@@ -6,6 +6,9 @@ import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { QA_STATUS_LABELS, qaStatusOf } from "@/lib/qa-status";
+import { useMyReviewerRole, useReviewMemberNames } from "@/hooks/useReviewMemberNames";
+import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,9 @@ import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const ArticleDetail = () => {
   const userId = useAuthUserId();
+  const qaQuestions = useQaQuestions();
+  const memberNames = useReviewMemberNames();
+  const { slot: myReviewerSlot, isOwner: isReviewOwner } = useMyReviewerRole();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -143,8 +149,9 @@ const ArticleDetail = () => {
       invalidate();
       const stageLabel = verificationLabelFor(key);
       toast.success(`${stageLabel} ${article[key] ? "reverted" : "verified"}.`);
-    } catch {
-      toast.error("Failed to update verification.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      toast.error(/reviewer/i.test(message) ? message : "Failed to update verification.");
     }
   };
 
@@ -182,12 +189,26 @@ const ArticleDetail = () => {
     verify_qa3: article.verify_qa3,
     verify_qa4: article.verify_qa4,
   } as const;
+  const verificationStamps = {
+    verify_peer1: { by: article.verify_peer1_by ?? null, at: article.verify_peer1_at ?? null },
+    verify_peer2: { by: article.verify_peer2_by ?? null, at: article.verify_peer2_at ?? null },
+    verify_qa3: { by: article.verify_qa3_by ?? null, at: article.verify_qa3_at ?? null },
+    verify_qa4: { by: article.verify_qa4_by ?? null, at: article.verify_qa4_at ?? null },
+  };
+  // Peer 1 / QA P1 belong to reviewer 1, Peer 2 / QA P2 to reviewer 2; owners may change any step.
+  const lockedSteps = new Set<VerificationKey>(
+    isReviewOwner || myReviewerSlot === null
+      ? []
+      : myReviewerSlot === 1 ? ["verify_peer2", "verify_qa4"] : ["verify_peer1", "verify_qa3"],
+  );
+  const samePeerReviewer = Boolean(article.verify_peer1 && article.verify_peer2 && verificationStamps.verify_peer1.by && verificationStamps.verify_peer1.by === verificationStamps.verify_peer2.by);
   const fullyVerified = isFullyVerified(articleVerification);
   const verificationProgress = countCompletedVerifications(articleVerification);
   const qaAnswers = QA_QUESTIONS.reduce((acc, question) => {
     acc[question.key] = article[question.key];
     return acc;
   }, {} as Record<QAKey, string | null>);
+  const decidedQaItems = QA_QUESTIONS.filter((question) => Boolean(qaAnswers[question.key])).length;
   const persistedQaScore = article.qa_score ?? calculateQAScore(qaAnswers);
   const qaScore = qaPreviewScore ?? persistedQaScore;
   const qaTone = qaScore >= 7 ? "text-accent" : qaScore >= 4 ? "text-warning" : "text-destructive";
@@ -266,7 +287,10 @@ const ArticleDetail = () => {
                     <p className="text-base font-medium">Review Verification</p>
                     <Badge variant="outline">{verificationProgress}/4 complete</Badge>
                   </div>
-                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} />
+                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} stamps={verificationStamps} names={memberNames} locked={lockedSteps} />
+                  {samePeerReviewer ? (
+                    <p className="text-xs text-warning-foreground" role="status">Peer 1 and Peer 2 were verified by the same person.</p>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -277,8 +301,12 @@ const ArticleDetail = () => {
                     <Badge variant="outline" className={reviewSessionBadgeTone}>{reviewSessionState}</Badge>
                   </div>
                   <div className="rounded-md border border-border/70 bg-card px-3 py-2">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">QA Score</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Final QA score</p>
                     <p className={`text-2xl font-semibold ${qaTone}`}>{qaScore} / 10</p>
+                    <Badge variant="outline" className="mt-1 text-[11px]" data-testid="qa-consensus-status">{QA_STATUS_LABELS[qaStatusOf(article.qa_consensus_status)]}</Badge>
+                    {decidedQaItems < QA_QUESTIONS.length ? (
+                      <p className="text-xs text-muted-foreground">{decidedQaItems} of {QA_QUESTIONS.length} items decided</p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Verification progress</span>
@@ -303,6 +331,7 @@ const ArticleDetail = () => {
               </TabsList>
 
               <TabsContent value="overview" className="space-y-3">
+                <DetailRow label="Source Database" value={article.source_database} />
                 <DetailRow label="DOI" value={article.doi} link={article.doi ? `https://doi.org/${article.doi}` : undefined} />
                 <DetailRow label="Authors" value={article.author} />
                 <DetailRow label="First Author" value={article.first_author} />
@@ -315,7 +344,7 @@ const ArticleDetail = () => {
               </TabsContent>
 
               <TabsContent value="qa" className="space-y-2">
-                {QA_QUESTIONS.map((question) => (
+                {qaQuestions.map((question) => (
                   <div key={question.key} className="rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-foreground">{question.label}</span>

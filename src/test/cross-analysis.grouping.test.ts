@@ -13,6 +13,9 @@ function makeArticle(overrides: Partial<Article>): Article {
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     study_id: null,
+    source_database: null,
+    review_id: "review-1",
+    qa_consensus_status: "not_assessed",
     author: null,
     first_author: null,
     last_author: null,
@@ -58,6 +61,14 @@ function makeArticle(overrides: Partial<Article>): Article {
     verify_peer2: false,
     verify_qa3: false,
     verify_qa4: false,
+    verify_peer1_at: null,
+    verify_peer1_by: null,
+    verify_peer2_at: null,
+    verify_peer2_by: null,
+    verify_qa3_at: null,
+    verify_qa3_by: null,
+    verify_qa4_at: null,
+    verify_qa4_by: null,
     qa_q1: null,
     qa_q2: null,
     qa_q3: null,
@@ -79,6 +90,17 @@ function makeArticle(overrides: Partial<Article>): Article {
 }
 
 describe("groupArticlesForCrossAnalysis", () => {
+  it("groups by source database keeping the original label", () => {
+    const articles = [
+      makeArticle({ source_database: "IEEE" }),
+      makeArticle({ source_database: "ieee" }),
+      makeArticle({ source_database: null }),
+    ];
+
+    const groups = groupArticlesForCrossAnalysis(articles, "database");
+    expect(groups.map((g) => [g.name, g.items.length])).toEqual([["IEEE", 2], ["Not specified", 1]]);
+  });
+
   it("splits author list into individual author groups", () => {
     const articles = [makeArticle({ author: "Kenji Suzuki; Paul F. Pasquina" })];
 

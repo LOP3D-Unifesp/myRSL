@@ -17,9 +17,11 @@ import {
   STUDY_DESIGNS, PUBLICATION_TYPES, AMPUTATION_CAUSES,
   AMPUTATION_LEVELS, CONTROL_STRATEGIES, SENSORS,
   FUNCTIONAL_TESTS, SETTINGS, PROSTHESIS_LEVELS,
-  FEEDBACK_MODALITIES, GROWTH_ACCOMMODATIONS, RESEARCH_QUESTIONS,
-  ALL_RESEARCH_QUESTIONS, STATISTICAL_TESTS_PERFORMED, HAS_PEDIATRIC_PARTICIPANTS,
+  FEEDBACK_MODALITIES, GROWTH_ACCOMMODATIONS,
+  STATISTICAL_TESTS_PERFORMED, HAS_PEDIATRIC_PARTICIPANTS,
 } from "@/lib/constants";
+import { useResearchQuestionOptions } from "@/hooks/useProtocolData";
+import SourceDatabaseSelect from "@/components/article/SourceDatabaseSelect";
 import PageHeader from "@/components/layout/PageHeader";
 import { useAuthUserId } from "@/contexts/auth-user-id";
 
@@ -45,6 +47,7 @@ function deriveFirstAuthorFromAuthors(authors: string | null | undefined): strin
 
 const ArticleForm = () => {
   const userId = useAuthUserId();
+  const researchQuestionOptions = useResearchQuestionOptions();
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
@@ -197,6 +200,7 @@ const ArticleForm = () => {
               {!pdfFile && form.pdf_url ? <p className="text-sm text-muted-foreground">PDF already uploaded</p> : null}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Study ID / Reference" value={form.study_id} onChange={(v) => set("study_id", v)} />
+                <SourceDatabaseSelect value={form.source_database} onChange={(v) => set("source_database", v || null)} />
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Authors (all, separated by ;)</Label>
                   <Textarea
@@ -329,8 +333,8 @@ const ArticleForm = () => {
           <Card>
             <CardHeader><CardTitle className="text-lg font-serif">Section 6: Research Scope</CardTitle></CardHeader>
             <CardContent className="space-y-6">
-              <RadioField label="A. Primary research question addressed (select one)" value={form.primary_research_question} options={RESEARCH_QUESTIONS} onChange={(v) => set("primary_research_question", v)} />
-              <MultiCheck label="B. All applicable research questions (select many)" options={ALL_RESEARCH_QUESTIONS} selected={form.research_questions || []} onToggle={(v) => toggleArray("research_questions", v)} />
+              <RadioField label="A. Primary research question addressed (select one)" value={form.primary_research_question} options={researchQuestionOptions} onChange={(v) => set("primary_research_question", v)} />
+              <MultiCheck label="B. All applicable research questions (select many)" options={researchQuestionOptions} selected={form.research_questions || []} onToggle={(v) => toggleArray("research_questions", v)} />
             </CardContent>
           </Card>
         )}

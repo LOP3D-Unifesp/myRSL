@@ -3,6 +3,9 @@ import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeArticleWriteInput, type ArticleWriteInput } from "@/lib/article-schemas";
 import { ARTICLE_EXPORT_HEADERS } from "@/lib/articles-export";
+import { deriveSourceDatabaseFromStudyId } from "@/lib/protocol";
+import { getActiveReviewId } from "@/lib/active-review";
+import { inActiveReview } from "@/lib/articles";
 
 type ExistingIdentifierRow = Pick<Database["public"]["Tables"]["articles"]["Row"], "doi" | "study_id">;
 
@@ -202,7 +205,7 @@ function zodErrorMessage(error: unknown): string {
 }
 
 async function fetchExistingIdentifiers(): Promise<{ doi: Set<string>; studyId: Set<string> }> {
-  const { data, error } = await supabase.from("articles").select("doi,study_id");
+  const { data, error } = await inActiveReview(supabase.from("articles").select("doi,study_id"));
   if (error) throw error;
 
   const rows = (data ?? []) as ExistingIdentifierRow[];
@@ -276,6 +279,7 @@ export async function previewArticlesExcelImport(file: File): Promise<ImportPrev
 
     try {
       payload = sanitizeArticleWriteInput(normalized) as ImportInsertPayload;
+      if (!payload.source_database) payload.source_database = deriveSourceDatabaseFromStudyId(payload.study_id);
     } catch (error) {
       invalidRows.push({ rowNumber, reason: zodErrorMessage(error) });
       return;
@@ -344,8 +348,8 @@ function isEmptyImportValue(value: unknown): boolean {
 }
 
 // Maps normalized DOI / study_id of the current user's articles to their row id.
-async function fetchExistingIdsByIdentifier(userId: string): Promise<Map<string, string>> {
-  const { data, error } = await supabase.from("articles").select("id,doi,study_id").eq("user_id", userId);
+async function fetchExistingIdsByIdentifier(): Promise<Map<string, string>> {
+  const { data, error } = await inActiveReview(supabase.from("articles").select("id,doi,study_id"));
   if (error) throw error;
 
   const ids = new Map<string, string>();
@@ -375,7 +379,7 @@ export async function executeArticlesExcelImport(preview: ImportPreview, mode: I
 
   if (mode === "update_existing") {
     // Existing articles (matched by DOI, else study_id) get the non-empty file values; empty cells keep the current value.
-    const existingIds = await fetchExistingIdsByIdentifier(user.id);
+    const existingIds = await fetchExistingIdsByIdentifier();
     for (const row of preview.possibleDuplicateRows) {
       const id = existingIds.get(`${row.duplicateField}:${row.duplicateValue}`);
       if (!id) {
@@ -383,7 +387,7 @@ export async function executeArticlesExcelImport(preview: ImportPreview, mode: I
         continue;
       }
       const changes = Object.fromEntries(Object.entries(row.payload).filter(([, value]) => !isEmptyImportValue(value)));
-      const { error } = await supabase.from("articles").update(changes).eq("id", id).eq("user_id", user.id);
+      const { error } = await supabase.from("articles").update(changes).eq("id", id);
       if (error) {
         failures.push({ rowNumber: row.rowNumber, message: error.message });
         continue;
@@ -397,6 +401,7 @@ export async function executeArticlesExcelImport(preview: ImportPreview, mode: I
     const { error } = await supabase.from("articles").insert({
       ...row.payload,
       user_id: user.id,
+      ...(getActiveReviewId() ? { review_id: getActiveReviewId() as string } : {}),
     });
     if (error) {
       failures.push({

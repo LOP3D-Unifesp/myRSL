@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.25.76";
 import { assertBodySize, getCorsHeaders, isOriginAllowed, jsonResponse } from "../_shared/http.ts";
+import { getReviewIdsForUser } from "../_shared/membership.ts";
 
 const MAX_SYNC_BODY_BYTES = 64_000;
 const CROSSREF_TIMEOUT_MS = 10_000;
@@ -273,11 +274,16 @@ serve(async (req) => {
     }
     const includeAbstract = parsed.data.includeAbstract ?? true;
 
+    const reviewIds = await getReviewIdsForUser(adminClient, user.id);
+    if (reviewIds.length === 0) {
+      return jsonResponse(req, { error: "No articles available for DOI sync." }, 404);
+    }
+
     const { data, error } = await adminClient
       .from("articles")
       .select("id,study_id,title,doi,year,author,first_author,last_author,abstract")
       .or("doi.not.is.null,title.not.is.null")
-      .eq("user_id", user.id)
+      .in("review_id", reviewIds)
       .in("id", ids)
       .order("created_at", { ascending: false })
       .limit(limit);

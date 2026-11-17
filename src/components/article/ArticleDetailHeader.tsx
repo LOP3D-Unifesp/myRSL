@@ -18,6 +18,7 @@ export function ArticleDetailHeader({ article, fullyVerified, articleTitle, cita
         {fullyVerified
           ? <Badge className="bg-accent text-accent-foreground">Verified</Badge>
           : <Badge className="bg-warning text-warning-foreground">Pending Review</Badge>}
+        {article.source_database ? <Badge variant="secondary">{article.source_database}</Badge> : null}
         {article.year ? <Badge variant="secondary">{article.year}</Badge> : null}
         {article.country ? <Badge variant="secondary">{article.country}</Badge> : null}
       </div>

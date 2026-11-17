@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_qa_assessments: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          qa_q1: string | null
+          qa_q2: string | null
+          qa_q3: string | null
+          qa_q4: string | null
+          qa_q5: string | null
+          qa_q6: string | null
+          qa_q7: string | null
+          qa_q8: string | null
+          qa_q9: string | null
+          qa_q10: string | null
+          qa_score: number | null
+          review_id: string
+          reviewer_id: string | null
+          reviewer_slot: number
+          updated_at: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          qa_q1?: string | null
+          qa_q2?: string | null
+          qa_q3?: string | null
+          qa_q4?: string | null
+          qa_q5?: string | null
+          qa_q6?: string | null
+          qa_q7?: string | null
+          qa_q8?: string | null
+          qa_q9?: string | null
+          qa_q10?: string | null
+          qa_score?: number | null
+          review_id?: string
+          reviewer_id?: string | null
+          reviewer_slot: number
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          qa_q1?: string | null
+          qa_q2?: string | null
+          qa_q3?: string | null
+          qa_q4?: string | null
+          qa_q5?: string | null
+          qa_q6?: string | null
+          qa_q7?: string | null
+          qa_q8?: string | null
+          qa_q9?: string | null
+          qa_q10?: string | null
+          qa_score?: number | null
+          review_id?: string
+          reviewer_id?: string | null
+          reviewer_slot?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       articles: {
         Row: {
           abstract: string | null
@@ -34,6 +97,7 @@ export type Database = {
           growth_accommodation: string | null
           has_pediatric_participants: string | null
           id: string
+          review_id: string
           is_draft: boolean
           last_author: string | null
           manufacturing_method: string | null
@@ -59,6 +123,7 @@ export type Database = {
           qa_q7: string | null
           qa_q8: string | null
           qa_q9: string | null
+          qa_consensus_status: string
           qa_score: number | null
           quantitative_results: string | null
           research_questions: string[] | null
@@ -66,6 +131,7 @@ export type Database = {
           sample_size: number | null
           sensors: string[] | null
           sensors_used: string | null
+          source_database: string | null
           setting: string[] | null
           statistical_tests_performed: string | null
           statistical_tests_specified: string | null
@@ -82,6 +148,14 @@ export type Database = {
           verify_peer2: boolean
           verify_qa3: boolean
           verify_qa4: boolean
+          verify_peer1_at: string | null
+          verify_peer1_by: string | null
+          verify_peer2_at: string | null
+          verify_peer2_by: string | null
+          verify_qa3_at: string | null
+          verify_qa3_by: string | null
+          verify_qa4_at: string | null
+          verify_qa4_by: string | null
           year: number | null
         }
         Insert: {
@@ -103,6 +177,7 @@ export type Database = {
           growth_accommodation?: string | null
           has_pediatric_participants?: string | null
           id?: string
+          review_id?: string
           is_draft?: boolean
           last_author?: string | null
           manufacturing_method?: string | null
@@ -128,6 +203,7 @@ export type Database = {
           qa_q7?: string | null
           qa_q8?: string | null
           qa_q9?: string | null
+          qa_consensus_status?: string
           qa_score?: number | null
           quantitative_results?: string | null
           research_questions?: string[] | null
@@ -135,6 +211,7 @@ export type Database = {
           sample_size?: number | null
           sensors?: string[] | null
           sensors_used?: string | null
+          source_database?: string | null
           setting?: string[] | null
           statistical_tests_performed?: string | null
           statistical_tests_specified?: string | null
@@ -151,6 +228,14 @@ export type Database = {
           verify_peer2?: boolean
           verify_qa3?: boolean
           verify_qa4?: boolean
+          verify_peer1_at?: string | null
+          verify_peer1_by?: string | null
+          verify_peer2_at?: string | null
+          verify_peer2_by?: string | null
+          verify_qa3_at?: string | null
+          verify_qa3_by?: string | null
+          verify_qa4_at?: string | null
+          verify_qa4_by?: string | null
           year?: number | null
         }
         Update: {
@@ -172,6 +257,7 @@ export type Database = {
           growth_accommodation?: string | null
           has_pediatric_participants?: string | null
           id?: string
+          review_id?: string
           is_draft?: boolean
           last_author?: string | null
           manufacturing_method?: string | null
@@ -197,6 +283,7 @@ export type Database = {
           qa_q7?: string | null
           qa_q8?: string | null
           qa_q9?: string | null
+          qa_consensus_status?: string
           qa_score?: number | null
           quantitative_results?: string | null
           research_questions?: string[] | null
@@ -204,6 +291,7 @@ export type Database = {
           sample_size?: number | null
           sensors?: string[] | null
           sensors_used?: string | null
+          source_database?: string | null
           setting?: string[] | null
           statistical_tests_performed?: string | null
           statistical_tests_specified?: string | null
@@ -220,7 +308,297 @@ export type Database = {
           verify_peer2?: boolean
           verify_qa3?: boolean
           verify_qa4?: boolean
+          verify_peer1_at?: string | null
+          verify_peer1_by?: string | null
+          verify_peer2_at?: string | null
+          verify_peer2_by?: string | null
+          verify_qa3_at?: string | null
+          verify_qa3_by?: string | null
+          verify_qa4_at?: string | null
+          verify_qa4_by?: string | null
           year?: number | null
+        }
+        Relationships: []
+      }
+      protocol_databases: {
+        Row: {
+          created_at: string
+          id: string
+          review_id: string
+          name: string
+          results_count: number | null
+          search_string: string | null
+          searched_at: string | null
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          review_id?: string
+          name: string
+          results_count?: number | null
+          search_string?: string | null
+          searched_at?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          review_id?: string
+          name?: string
+          results_count?: number | null
+          search_string?: string | null
+          searched_at?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      protocol_criteria: {
+        Row: {
+          code: string
+          id: string
+          kind: string
+          position: number
+          review_id: string
+          text: string
+        }
+        Insert: {
+          code: string
+          id?: string
+          kind: string
+          position?: number
+          review_id: string
+          text: string
+        }
+        Update: {
+          code?: string
+          id?: string
+          kind?: string
+          position?: number
+          review_id?: string
+          text?: string
+        }
+        Relationships: []
+      }
+      protocol_qa_items: {
+        Row: {
+          description: string | null
+          label: string
+          review_id: string
+          slot: string
+        }
+        Insert: {
+          description?: string | null
+          label: string
+          review_id: string
+          slot: string
+        }
+        Update: {
+          description?: string | null
+          label?: string
+          review_id?: string
+          slot?: string
+        }
+        Relationships: []
+      }
+      protocol_questions: {
+        Row: {
+          code: string
+          id: string
+          is_main: boolean
+          label: string
+          position: number
+          review_id: string
+          text: string | null
+        }
+        Insert: {
+          code: string
+          id?: string
+          is_main?: boolean
+          label: string
+          position?: number
+          review_id: string
+          text?: string | null
+        }
+        Update: {
+          code?: string
+          id?: string
+          is_main?: boolean
+          label?: string
+          position?: number
+          review_id?: string
+          text?: string | null
+        }
+        Relationships: []
+      }
+      protocols: {
+        Row: {
+          created_at: string
+          objective: string | null
+          picoc: Json
+          keywords: Json
+          search_string: string | null
+          title: string | null
+          extraction_notes: string | null
+          id: string
+          review_id: string
+          languages: string[] | null
+          period_from: number | null
+          period_to: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          objective?: string | null
+          picoc?: Json
+          keywords?: Json
+          search_string?: string | null
+          title?: string | null
+          extraction_notes?: string | null
+          id?: string
+          review_id?: string
+          languages?: string[] | null
+          period_from?: number | null
+          period_to?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          objective?: string | null
+          picoc?: Json
+          keywords?: Json
+          search_string?: string | null
+          title?: string | null
+          extraction_notes?: string | null
+          id?: string
+          review_id?: string
+          languages?: string[] | null
+          period_from?: number | null
+          period_to?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      screening_records: {
+        Row: {
+          abstract: string | null
+          article_id: string | null
+          authors: string | null
+          comments: string | null
+          created_at: string
+          criterion_code: string | null
+          doi: string | null
+          document_type: string | null
+          id: string
+          journal: string | null
+          keywords: string | null
+          review_id: string
+          screened_at: string | null
+          screened_by: string | null
+          source_database: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          year: number | null
+        }
+        Insert: {
+          abstract?: string | null
+          article_id?: string | null
+          authors?: string | null
+          comments?: string | null
+          created_at?: string
+          criterion_code?: string | null
+          doi?: string | null
+          document_type?: string | null
+          id?: string
+          journal?: string | null
+          keywords?: string | null
+          review_id: string
+          screened_at?: string | null
+          screened_by?: string | null
+          source_database?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Update: {
+          abstract?: string | null
+          article_id?: string | null
+          authors?: string | null
+          comments?: string | null
+          created_at?: string
+          criterion_code?: string | null
+          doi?: string | null
+          document_type?: string | null
+          id?: string
+          journal?: string | null
+          keywords?: string | null
+          review_id?: string
+          screened_at?: string | null
+          screened_by?: string | null
+          source_database?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      review_members: {
+        Row: {
+          created_at: string
+          reviewer_slot: number | null
+          review_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          reviewer_slot?: number | null
+          review_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          reviewer_slot?: number | null
+          review_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -250,7 +628,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_review_member: {
+        Args: { p_email: string; p_review_id: string }
+        Returns: undefined
+      }
+      create_review: {
+        Args: { p_name: string }
+        Returns: string
+      }
+      my_reviewer_slot: {
+        Args: { rid: string }
+        Returns: number | null
+      }
+      set_reviewer_slot: {
+        Args: { p_review_id: string; p_slot: number | null; p_user_id: string }
+        Returns: undefined
+      }
+      save_protocol_lists: {
+        Args: { p_criteria: Json; p_qa: Json; p_questions: Json; p_review_id: string }
+        Returns: undefined
+      }
+      list_review_members: {
+        Args: { p_review_id: string }
+        Returns: {
+          email: string
+          full_name: string | null
+          reviewer_slot: number | null
+          role: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -19,9 +19,9 @@ import { useAuthUserId } from "@/contexts/auth-user-id";
 type QueueItem = {
   article: ArticleListItem;
   priority: number;
-  actionLabel: "Continue" | "Review" | "Open";
+  actionLabel: "Continue" | "Review" | "Open" | "Decide";
   actionTo: string;
-  statusLabel: "Draft" | "Pending" | "Verified";
+  statusLabel: "Draft" | "Pending" | "Needs consensus" | "Verified";
   tone: "warning" | "success";
 };
 
@@ -48,9 +48,20 @@ function buildQueueItem(article: ArticleListItem): QueueItem {
     };
   }
 
+  if (article.qa_consensus_status === "needs_consensus") {
+    return {
+      article,
+      priority: 2,
+      actionLabel: "Decide",
+      actionTo: `/articles/${article.id}`,
+      statusLabel: "Needs consensus",
+      tone: "warning",
+    };
+  }
+
   return {
     article,
-    priority: 2,
+    priority: 3,
     actionLabel: "Open",
     actionTo: `/articles/${article.id}`,
     statusLabel: "Verified",
@@ -93,7 +104,9 @@ const Dashboard = () => {
   }, [articles]);
 
   const workQueue = useMemo(() => {
+    // Only items that still need action: drafts to finish and articles awaiting verification.
     return articles
+      .filter((article) => article.is_draft || !isFullyVerified(article) || article.qa_consensus_status === "needs_consensus")
       .map(buildQueueItem)
       .sort((a, b) => a.priority - b.priority || (new Date(b.article.updated_at ?? b.article.created_at ?? 0).getTime() - new Date(a.article.updated_at ?? a.article.created_at ?? 0).getTime()))
       .slice(0, 8);
@@ -176,7 +189,7 @@ const Dashboard = () => {
 
       <DashboardSection
         title="Work Queue"
-        subtitle="Priority-ordered items that need action now."
+        subtitle="Drafts to finish first, then articles awaiting verification, then QA that needs a consensus."
         variant="priority"
         action={
           <Button asChild variant="outline" size="sm">
@@ -184,13 +197,18 @@ const Dashboard = () => {
           </Button>
         }
       >
+        {workQueue.length === 0 ? (
+          <p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            All caught up: no drafts, every article is verified and no QA needs a consensus.
+          </p>
+        ) : null}
         <ol className="space-y-2.5">
           {workQueue.map((item, index) => (
             <li
               key={item.article.id}
               className={cn(
                 "relative flex flex-col gap-3 rounded-lg border bg-background/90 p-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
-                item.priority <= 1 ? "border-primary/30" : "border-border/70",
+                item.priority <= 2 ? "border-primary/30" : "border-border/70",
               )}
             >
               <div className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary/80" />
@@ -207,7 +225,7 @@ const Dashboard = () => {
                 <p className="mt-1 text-sm text-muted-foreground">{getQueueSecondaryText(item.article)}</p>
               </div>
 
-              <Button asChild size="sm" variant={item.priority <= 1 ? "default" : "outline"} className="self-start sm:self-auto">
+              <Button asChild size="sm" variant={item.priority <= 2 ? "default" : "outline"} className="self-start sm:self-auto">
                 <Link to={item.actionTo}>
                   {item.actionLabel}
                   <ArrowRight className="ml-2 h-4 w-4" />

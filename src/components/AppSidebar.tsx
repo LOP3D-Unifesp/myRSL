@@ -1,14 +1,17 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, FileText, PlusCircle, BarChart3, LogOut, Menu, X, RefreshCw } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, BarChart3, ClipboardList, ListChecks, LogOut, Menu, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import ReviewSwitcher from "@/components/ReviewSwitcher";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/screening", icon: ListChecks, label: "Screening" },
   { to: "/articles", icon: FileText, label: "Articles" },
   { to: "/articles/new", icon: PlusCircle, label: "New Article" },
+  { to: "/protocol", icon: ClipboardList, label: "Protocol" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/doi-sync/review", icon: RefreshCw, label: "DOI Review" },
 ];
@@ -45,6 +48,8 @@ const AppSidebar = () => {
           <X className="h-5 w-5" />
         </button>
       </div>
+
+      <ReviewSwitcher />
 
       <nav className="flex-1 space-y-1.5 px-2.5 py-3.5">
         {navItems.map(({ to, icon: Icon, label }) => {
