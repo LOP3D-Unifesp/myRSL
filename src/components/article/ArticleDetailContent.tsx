@@ -28,6 +28,7 @@ const ArticleDetailContent = ({ article }: Props) => {
           </div>
         )}
         <Row label="Study ID" value={article.study_id} />
+        <Row label="Source Database" value={article.source_database} />
         <Row label="Author(s)" value={article.author} />
         <Row label="First Author" value={article.first_author || deriveFirstAuthorFromAuthors(article.author)} />
         <Row label="Last Author" value={article.last_author} />

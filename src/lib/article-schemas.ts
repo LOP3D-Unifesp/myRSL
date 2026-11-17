@@ -7,6 +7,7 @@ const optionalStringArray = z.array(z.string().max(200)).max(50).nullable().opti
 export const articleWriteSchema = z.object({
   is_draft: z.boolean().optional(),
   study_id: optionalShortString,
+  source_database: optionalShortString,
   author: optionalShortString,
   first_author: optionalShortString,
   last_author: optionalShortString,

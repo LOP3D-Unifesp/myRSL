@@ -20,6 +20,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: "title", header: "title" },
   { key: "abstract", header: "abstract" },
   { key: "study_id", header: "study_id" },
+  { key: "source_database", header: "source_database" },
   { key: "author", header: "author" },
   { key: "first_author", header: "first_author" },
   { key: "last_author", header: "last_author" },

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import SourceDatabaseSelect from "@/components/article/SourceDatabaseSelect";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ type Props = {
 };
 
 type FormState = {
-  doi: string; title: string; abstract: string; study_id: string; author: string; first_author: string; last_author: string; universities: string; country: string; year: string; publication_place: string;
+  doi: string; title: string; abstract: string; study_id: string; source_database: string; author: string; first_author: string; last_author: string; universities: string; country: string; year: string; publication_place: string;
   publication_type: string; study_design: string; q1: string;
   has_pediatric_participants: string; sample_size: string; age_range: string; amputation_cause: string[]; amputation_level: string[]; pediatric_approach: string;
   prosthesis_name: string; prosthesis_level: string; dof: string; control_strategy: string[]; sensors: string[]; feedback_modalities: string[]; manufacturing_method: string; growth_accommodation: string; technical_innovation: string; technical_challenges: string;
@@ -58,7 +59,7 @@ function sameArray(a: string[], b: string[]) {
 }
 function buildState(a: Article): FormState {
   return {
-    doi: a.doi ?? "", title: a.title ?? "", abstract: a.abstract ?? "", study_id: a.study_id ?? "", author: a.author ?? "", first_author: a.first_author ?? "", last_author: a.last_author ?? "", universities: a.universities ?? "", country: a.country ?? "", year: a.year != null ? String(a.year) : "", publication_place: a.publication_place ?? "",
+    doi: a.doi ?? "", title: a.title ?? "", abstract: a.abstract ?? "", study_id: a.study_id ?? "", source_database: a.source_database ?? "", author: a.author ?? "", first_author: a.first_author ?? "", last_author: a.last_author ?? "", universities: a.universities ?? "", country: a.country ?? "", year: a.year != null ? String(a.year) : "", publication_place: a.publication_place ?? "",
     publication_type: a.publication_type ?? "", study_design: a.study_design ?? "", q1: a.q1 ?? "",
     has_pediatric_participants: a.has_pediatric_participants ?? "", sample_size: a.sample_size != null ? String(a.sample_size) : "", age_range: a.age_range ?? "", amputation_cause: a.amputation_cause ?? [], amputation_level: a.amputation_level ?? [], pediatric_approach: a.pediatric_approach ?? "",
     prosthesis_name: a.prosthesis_name ?? "", prosthesis_level: a.prosthesis_level ?? "", dof: a.dof ?? "", control_strategy: a.control_strategy ?? [], sensors: a.sensors ?? [], feedback_modalities: a.feedback_modalities ?? [], manufacturing_method: a.manufacturing_method ?? "", growth_accommodation: a.growth_accommodation ?? "", technical_innovation: a.technical_innovation ?? "", technical_challenges: a.technical_challenges ?? "",
@@ -68,7 +69,7 @@ function buildState(a: Article): FormState {
 }
 
 const SECTION_FIELDS: Record<Exclude<SectionKey, "qa">, Array<keyof FormState>> = {
-  general: ["doi", "title", "abstract", "study_id", "author", "first_author", "last_author", "universities", "country", "year", "publication_place"],
+  general: ["doi", "title", "abstract", "study_id", "source_database", "author", "first_author", "last_author", "universities", "country", "year", "publication_place"],
   publication: ["publication_type", "study_design", "q1"],
   pediatric: ["has_pediatric_participants", "sample_size", "age_range", "amputation_cause", "amputation_level", "pediatric_approach"],
   technical: ["prosthesis_name", "prosthesis_level", "dof", "control_strategy", "sensors", "feedback_modalities", "manufacturing_method", "growth_accommodation", "technical_innovation", "technical_challenges"],
@@ -179,6 +180,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
         <TextField label="Abstract" value={form.abstract} onChange={(v) => setForm((p) => ({ ...p, abstract: v }))} rows={4} />
         <Field label="DOI" value={form.doi} onChange={(v) => setForm((p) => ({ ...p, doi: v }))} />
         <Field label="Study ID / Reference" value={form.study_id} onChange={(v) => setForm((p) => ({ ...p, study_id: v }))} />
+        <SourceDatabaseSelect value={form.source_database} onChange={(v) => setForm((p) => ({ ...p, source_database: v }))} />
         <TextField label="Authors (all, separated by ;)" value={form.author} onChange={(v) => setForm((p) => ({ ...p, author: v }))} rows={3} />
         <Field label="First Author" value={form.first_author} onChange={(v) => setForm((p) => ({ ...p, first_author: v }))} />
         <Field label="Last Author" value={form.last_author} onChange={(v) => setForm((p) => ({ ...p, last_author: v }))} />

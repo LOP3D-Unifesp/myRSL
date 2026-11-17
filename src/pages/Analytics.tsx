@@ -87,6 +87,7 @@ const Analytics = () => {
         a.author?.toLowerCase().includes(term) ||
         String(a.year).includes(term) ||
         a.country?.toLowerCase().includes(term) ||
+        a.source_database?.toLowerCase().includes(term) ||
         a.title?.toLowerCase().includes(term),
     );
   }, [articles, search]);
@@ -102,6 +103,7 @@ const Analytics = () => {
   }, [filtered]);
 
   const controlData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.control_strategy)), 8), [filtered]);
+  const databaseData = useMemo(() => buildFrequency(filtered.map((a) => a.source_database || "Not specified")), [filtered]);
   const designData = useMemo(() => topNWithOthers(buildFrequency(filtered.map((a) => a.study_design)), 8), [filtered]);
   const levelData = useMemo(() => topNWithOthers(buildFrequencyFromNested(filtered.map((a) => a.amputation_level)), 8), [filtered]);
   const primaryRqData = useMemo(() => topNWithOthers(buildFrequency(filtered.map((a) => a.primary_research_question)), 8), [filtered]);
@@ -238,11 +240,11 @@ const Analytics = () => {
             </div>
           </DashboardSection>
 
-          <DashboardSection title="Explore the Dataset" subtitle="Narrow charts by author, year, or country." variant="subtle" compact>
+          <DashboardSection title="Explore the Dataset" subtitle="Narrow charts by author, year, country, or database." variant="subtle" compact>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Filter by author, year, or country..."
+                placeholder="Filter by author, year, country, or database..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="max-w-md border-border/80 bg-background pl-10"
@@ -278,6 +280,7 @@ const Analytics = () => {
                       yearHighlighted={highlightedTarget === ANALYTICS_TARGETS.year}
                       yearData={yearData}
                       countryData={countryData}
+                      databaseData={databaseData}
                       pediatricData={pediatricData}
                       countriesCount={countriesCount}
                       pediatricSummary={pediatricSummary}

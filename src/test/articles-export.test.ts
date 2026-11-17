@@ -17,6 +17,7 @@ function createArticleFixture(overrides: Partial<ArticleRow> = {}): ArticleRow {
     title: "Paper",
     abstract: null,
     study_id: null,
+    source_database: null,
     author: "Alice",
     first_author: "Alice",
     last_author: null,

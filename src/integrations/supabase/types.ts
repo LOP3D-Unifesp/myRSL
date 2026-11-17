@@ -66,6 +66,7 @@ export type Database = {
           sample_size: number | null
           sensors: string[] | null
           sensors_used: string | null
+          source_database: string | null
           setting: string[] | null
           statistical_tests_performed: string | null
           statistical_tests_specified: string | null
@@ -135,6 +136,7 @@ export type Database = {
           sample_size?: number | null
           sensors?: string[] | null
           sensors_used?: string | null
+          source_database?: string | null
           setting?: string[] | null
           statistical_tests_performed?: string | null
           statistical_tests_specified?: string | null
@@ -204,6 +206,7 @@ export type Database = {
           sample_size?: number | null
           sensors?: string[] | null
           sensors_used?: string | null
+          source_database?: string | null
           setting?: string[] | null
           statistical_tests_performed?: string | null
           statistical_tests_specified?: string | null
@@ -221,6 +224,81 @@ export type Database = {
           verify_qa3?: boolean
           verify_qa4?: boolean
           year?: number | null
+        }
+        Relationships: []
+      }
+      protocol_databases: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          results_count: number | null
+          search_string: string | null
+          searched_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          results_count?: number | null
+          search_string?: string | null
+          searched_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          results_count?: number | null
+          search_string?: string | null
+          searched_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      protocols: {
+        Row: {
+          created_at: string
+          exclusion_criteria: string[] | null
+          extraction_notes: string | null
+          id: string
+          inclusion_criteria: string[] | null
+          languages: string[] | null
+          period_from: number | null
+          period_to: number | null
+          research_questions: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          exclusion_criteria?: string[] | null
+          extraction_notes?: string | null
+          id?: string
+          inclusion_criteria?: string[] | null
+          languages?: string[] | null
+          period_from?: number | null
+          period_to?: number | null
+          research_questions?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          exclusion_criteria?: string[] | null
+          extraction_notes?: string | null
+          id?: string
+          inclusion_criteria?: string[] | null
+          languages?: string[] | null
+          period_from?: number | null
+          period_to?: number | null
+          research_questions?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

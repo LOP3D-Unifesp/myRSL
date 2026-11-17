@@ -3,6 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeArticleWriteInput, type ArticleWriteInput } from "@/lib/article-schemas";
 import { ARTICLE_EXPORT_HEADERS } from "@/lib/articles-export";
+import { deriveSourceDatabaseFromStudyId } from "@/lib/protocol";
 
 type ExistingIdentifierRow = Pick<Database["public"]["Tables"]["articles"]["Row"], "doi" | "study_id">;
 
@@ -276,6 +277,7 @@ export async function previewArticlesExcelImport(file: File): Promise<ImportPrev
 
     try {
       payload = sanitizeArticleWriteInput(normalized) as ImportInsertPayload;
+      if (!payload.source_database) payload.source_database = deriveSourceDatabaseFromStudyId(payload.study_id);
     } catch (error) {
       invalidRows.push({ rowNumber, reason: zodErrorMessage(error) });
       return;

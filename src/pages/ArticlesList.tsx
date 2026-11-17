@@ -121,6 +121,7 @@ const ArticlesList = () => {
   const initialQ = searchParams.get("q") ?? "";
   const initialPage = parsePositiveInt(searchParams.get("page"), 1);
   const initialCountry = searchParams.get("country") ?? "all";
+  const initialSourceDatabase = searchParams.get("database") ?? "all";
   const initialYearFrom = parseYearParam(searchParams.get("year_from"));
   const initialYearTo = parseYearParam(searchParams.get("year_to"));
   const initialQaMin = parseQaParam(searchParams.get("qa_min"));
@@ -138,6 +139,7 @@ const ArticlesList = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [country, setCountry] = useState(initialCountry);
+  const [sourceDatabase, setSourceDatabase] = useState(initialSourceDatabase);
   const [yearFrom, setYearFrom] = useState(initialYearFrom);
   const [yearTo, setYearTo] = useState(initialYearTo);
   const [qaMin, setQaMin] = useState(initialQaMin);
@@ -145,7 +147,7 @@ const ArticlesList = () => {
   const [status, setStatus] = useState<ArticleListStatus>(initialStatus);
   const [verificationFilters, setVerificationFilters] = useState<Set<VerificationFilterKey>>(initialVerificationFilters);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(
-    initialCountry !== "all" || initialYearFrom !== "all" || initialYearTo !== "all" || initialQaMin !== "all" || initialVerificationFilters.size > 0,
+    initialCountry !== "all" || initialSourceDatabase !== "all" || initialYearFrom !== "all" || initialYearTo !== "all" || initialQaMin !== "all" || initialVerificationFilters.size > 0,
   );
 
   useEffect(() => {
@@ -161,6 +163,7 @@ const ArticlesList = () => {
     if (search.trim()) params.set("q", search.trim());
     params.set("page", String(page));
     if (country !== "all") params.set("country", country);
+    if (sourceDatabase !== "all") params.set("database", sourceDatabase);
     if (yearFrom !== "all") params.set("year_from", yearFrom);
     if (yearTo !== "all") params.set("year_to", yearTo);
     if (qaMin !== "all") params.set("qa_min", qaMin);
@@ -173,7 +176,7 @@ const ArticlesList = () => {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [country, page, qaMin, search, searchParams, setSearchParams, sort, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, page, qaMin, search, searchParams, setSearchParams, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const queryParams = useMemo(() => {
     const yearFromNumber = yearFrom === "all" ? null : Number(yearFrom);
@@ -185,6 +188,7 @@ const ArticlesList = () => {
       pageSize: PAGE_SIZE,
       search,
       country,
+      sourceDatabase,
       yearFrom: Number.isFinite(yearFromNumber) ? yearFromNumber : null,
       yearTo: Number.isFinite(yearToNumber) ? yearToNumber : null,
       qaMin: Number.isFinite(qaMinNumber) ? qaMinNumber : null,
@@ -192,7 +196,7 @@ const ArticlesList = () => {
       verificationFilters: Array.from(verificationFilters),
       sort,
     };
-  }, [country, page, qaMin, search, sort, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, page, qaMin, search, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const { data, isLoading } = useQuery({
     queryKey: articleKeys.page(userId, queryParams),
@@ -216,6 +220,10 @@ const ArticlesList = () => {
     }
   }, [page, totalPages]);
 
+  const sourceDatabaseOptions = useMemo(() => {
+    return Array.from(new Set(filterOptions.map((a) => a.source_database).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b));
+  }, [filterOptions]);
+
   const countryOptions = useMemo(() => {
     return Array.from(new Set(filterOptions.map((a) => a.country).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b));
   }, [filterOptions]);
@@ -226,6 +234,7 @@ const ArticlesList = () => {
 
   const hasAnyArticles = totalCount > 0;
   const advancedFiltersCount = (country !== "all" ? 1 : 0)
+    + (sourceDatabase !== "all" ? 1 : 0)
     + (yearFrom !== "all" ? 1 : 0)
     + (yearTo !== "all" ? 1 : 0)
     + (qaMin !== "all" ? 1 : 0);
@@ -377,6 +386,7 @@ const ArticlesList = () => {
 
   const clearFilters = () => {
     setCountry("all");
+    setSourceDatabase("all");
     setYearFrom("all");
     setYearTo("all");
     setQaMin("all");
@@ -519,6 +529,14 @@ const ArticlesList = () => {
                     <SelectContent>
                       <SelectItem value="all">All Countries</SelectItem>
                       {countryOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sourceDatabase} onValueChange={(value) => { setSourceDatabase(value); setPage(1); }}>
+                    <SelectTrigger className="h-10 border-border/70"><SelectValue placeholder="Database" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Databases</SelectItem>
+                      {sourceDatabaseOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
                     </SelectContent>
                   </Select>
 
@@ -737,7 +755,7 @@ function ArticleRow({
   const verificationProgress = countCompletedVerifications(verificationValues);
   const studyId = article.study_id || "No Study ID";
   const authorLabel = formatCompactAuthors(article.author, article.first_author);
-  const metaLine = [authorLabel, article.country].filter(Boolean).join(" - ");
+  const metaLine = [authorLabel, article.source_database, article.country].filter(Boolean).join(" - ");
 
   return (
     <Card className="border-border/70 bg-card/80 shadow-sm transition-shadow hover:shadow-md">

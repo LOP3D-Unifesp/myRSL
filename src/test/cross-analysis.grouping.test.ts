@@ -13,6 +13,7 @@ function makeArticle(overrides: Partial<Article>): Article {
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     study_id: null,
+    source_database: null,
     author: null,
     first_author: null,
     last_author: null,
@@ -79,6 +80,17 @@ function makeArticle(overrides: Partial<Article>): Article {
 }
 
 describe("groupArticlesForCrossAnalysis", () => {
+  it("groups by source database keeping the original label", () => {
+    const articles = [
+      makeArticle({ source_database: "IEEE" }),
+      makeArticle({ source_database: "ieee" }),
+      makeArticle({ source_database: null }),
+    ];
+
+    const groups = groupArticlesForCrossAnalysis(articles, "database");
+    expect(groups.map((g) => [g.name, g.items.length])).toEqual([["IEEE", 2], ["Not specified", 1]]);
+  });
+
   it("splits author list into individual author groups", () => {
     const articles = [makeArticle({ author: "Kenji Suzuki; Paul F. Pasquina" })];
 

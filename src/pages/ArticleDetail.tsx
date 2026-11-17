@@ -303,6 +303,7 @@ const ArticleDetail = () => {
               </TabsList>
 
               <TabsContent value="overview" className="space-y-3">
+                <DetailRow label="Source Database" value={article.source_database} />
                 <DetailRow label="DOI" value={article.doi} link={article.doi ? `https://doi.org/${article.doi}` : undefined} />
                 <DetailRow label="Authors" value={article.author} />
                 <DetailRow label="First Author" value={article.first_author} />

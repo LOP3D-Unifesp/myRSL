@@ -3,13 +3,13 @@ import { type Article } from "@/lib/articles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Building2, FlaskConical, Target, ArrowLeft, Search, ArrowUpDown, BookOpen } from "lucide-react";
+import { Users, Building2, FlaskConical, Target, ArrowLeft, Search, ArrowUpDown, BookOpen, Database } from "lucide-react";
 import { Link } from "react-router-dom";
 import { splitAndNormalizeCountries } from "@/lib/country-normalization";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq" | "publication_place";
+type GroupMode = "author" | "last_author" | "first_author" | "university" | "country" | "pediatric" | "primary_rq" | "publication_place" | "database";
 type GroupItem = { key: string; name: string; items: Article[] };
 type GroupSort = "count_desc" | "count_asc" | "name_asc" | "name_desc";
 
@@ -50,6 +50,7 @@ function getKeysForMode(article: Article, mode: GroupMode): string[] {
     return countries.length > 0 ? countries : ["Unknown"];
   }
   if (mode === "pediatric") return [article.has_pediatric_participants || "Not reported"];
+  if (mode === "database") return article.source_database ? [article.source_database] : ["Not specified"];
   if (mode === "publication_place") return article.publication_place ? [article.publication_place] : ["Unknown"];
   return [article.primary_research_question || "Not assigned"];
 }
@@ -64,7 +65,7 @@ export function groupArticlesForCrossAnalysis(articles: Article[], mode: GroupMo
       if (existing) {
         existing.items.push(article);
       } else {
-        map.set(key, { key, name: label, items: [article] });
+        map.set(key, { key, name: mode === "database" ? rawKey.trim() : label, items: [article] });
       }
     });
   });
@@ -106,6 +107,7 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
     pediatric: { label: "Pediatric Participants", icon: <FlaskConical className="h-4 w-4" /> },
     primary_rq: { label: "Primary Research Question", icon: <Target className="h-4 w-4" /> },
     publication_place: { label: "Journal / Conference", icon: <BookOpen className="h-4 w-4" /> },
+    database: { label: "Database", icon: <Database className="h-4 w-4" /> },
   };
 
   const largestGroup = grouped[0];
@@ -117,7 +119,7 @@ const CrossAnalysis = ({ articles }: { articles: Article[] }) => {
     const filteredItems = group.items.filter((item) => {
       const term = detailSearch.trim().toLowerCase();
       if (!term) return true;
-      return [item.title, item.author, item.country, item.study_design].filter(Boolean).join(" ").toLowerCase().includes(term);
+      return [item.title, item.author, item.country, item.study_design, item.source_database].filter(Boolean).join(" ").toLowerCase().includes(term);
     });
 
     return (

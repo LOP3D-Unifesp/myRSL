@@ -19,6 +19,7 @@ export type ArticleListItem = Pick<
   | "author"
   | "first_author"
   | "study_id"
+  | "source_database"
   | "country"
   | "prosthesis_name"
   | "year"
@@ -46,6 +47,7 @@ export type FetchArticlesPageParams = {
   pageSize: number;
   search: string;
   country?: string;
+  sourceDatabase?: string;
   yearFrom?: number | null;
   yearTo?: number | null;
   qaMin?: number | null;
@@ -266,16 +268,16 @@ export async function fetchArticle(id: string) {
 export async function fetchArticleSummaries() {
   const { data, error } = await supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
+    .select("id,title,author,first_author,study_id,source_database,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleListItem[];
 }
 
-export type ArticleFilterOption = Pick<Article, "id" | "country" | "year">;
+export type ArticleFilterOption = Pick<Article, "id" | "country" | "year" | "source_database">;
 
 export async function fetchFilterOptions(): Promise<ArticleFilterOption[]> {
-  const { data, error } = await supabase.from("articles").select("id,country,year").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("articles").select("id,country,year,source_database").order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleFilterOption[];
 }
@@ -295,6 +297,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     pageSize,
     search,
     country,
+    sourceDatabase,
     yearFrom,
     yearTo,
     qaMin,
@@ -308,19 +311,23 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
   const to = from + pageSize - 1;
   let query = supabase
     .from("articles")
-    .select("id,title,author,first_author,study_id,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
+    .select("id,title,author,first_author,study_id,source_database,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" })
     .range(from, to);
 
   const term = search.trim();
   if (term) {
     const escaped = term.replaceAll("%", "\\%");
     query = query.or(
-      `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
+      `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,source_database.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
     );
   }
 
   if (country && country !== "all") {
     query = query.eq("country", country);
+  }
+
+  if (sourceDatabase && sourceDatabase !== "all") {
+    query = query.eq("source_database", sourceDatabase);
   }
 
   if (yearFrom != null) {

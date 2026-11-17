@@ -7,6 +7,7 @@ export default function OverviewSection({
   yearHighlighted,
   yearData,
   countryData,
+  databaseData,
   pediatricData,
   countriesCount,
   pediatricSummary,
@@ -15,6 +16,7 @@ export default function OverviewSection({
   yearHighlighted: boolean;
   yearData: FrequencyItem[];
   countryData: FrequencyItem[];
+  databaseData: FrequencyItem[];
   pediatricData: FrequencyItem[];
   countriesCount: number;
   pediatricSummary: string;
@@ -29,6 +31,10 @@ export default function OverviewSection({
         className="xl:col-span-2"
       >
         <VerticalBarChart data={yearData} dataKey="value" xKey="name" color="hsl(var(--chart-1))" />
+      </ChartCard>
+
+      <ChartCard title="Studies by Database" subtitle="Where the included studies were found (defined in the Protocol).">
+        <VerticalBarChart data={databaseData} dataKey="value" xKey="name" color="hsl(var(--chart-2))" />
       </ChartCard>
 
       <ChartCard title="Top Countries" subtitle={`Executive snapshot: top 10 countries (out of ${countriesCount}).`}>
