@@ -5,16 +5,18 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuthUserId } from "@/contexts/auth-user-id";
-import { useCurrentReview } from "@/contexts/current-review";
-import { addReviewMember, fetchReviewMembers, removeReviewMember } from "@/lib/reviews";
+import { reviewsQueryKey, useCurrentReview } from "@/contexts/current-review";
+import { addReviewMember, fetchReviewMembers, removeReviewMember, renameReview } from "@/lib/reviews";
 
 const MembersTab = () => {
   const userId = useAuthUserId();
   const { review } = useCurrentReview();
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
+  const [name, setName] = useState(review.name);
   const isOwner = review.role === "owner";
   const queryKey = ["review-members", review.id] as const;
 
@@ -30,6 +32,15 @@ const MembersTab = () => {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not add this member."),
   });
 
+  const renameMutation = useMutation({
+    mutationFn: () => renameReview(review.id, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reviewsQueryKey(userId) });
+      toast.success("Review renamed.");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not rename the review."),
+  });
+
   const removeMutation = useMutation({
     mutationFn: (memberId: string) => removeReviewMember(review.id, memberId),
     onSuccess: () => {
@@ -41,6 +52,24 @@ const MembersTab = () => {
 
   return (
     <div className="space-y-4">
+      <form
+        className="flex items-end gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (name.trim() && name.trim() !== review.name) renameMutation.mutate();
+        }}
+      >
+        <div className="flex-1 space-y-2">
+          <Label htmlFor="review-name">Review name</Label>
+          <Input id="review-name" value={name} disabled={!isOwner} onChange={(e) => setName(e.target.value)} />
+        </div>
+        {isOwner ? (
+          <Button type="submit" variant="outline" disabled={!name.trim() || name.trim() === review.name || renameMutation.isPending}>
+            Rename
+          </Button>
+        ) : null}
+      </form>
+
       <p className="text-sm text-muted-foreground">
         Everyone listed here can see and edit the articles and protocol of <strong>{review.name}</strong>. Only owners can add or remove people and delete articles.
       </p>

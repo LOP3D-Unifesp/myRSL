@@ -31,6 +31,14 @@ export async function fetchMyReviews(userId: string): Promise<Review[]> {
     .map(({ id, name, role }) => ({ id, name, role }));
 }
 
+export async function renameReview(reviewId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Review name is required.");
+  const { data, error } = await supabase.from("reviews").update({ name: trimmed }).eq("id", reviewId).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("Only the owner can rename the review.");
+}
+
 export async function createReview(name: string): Promise<string> {
   const { data, error } = await supabase.rpc("create_review", { p_name: name });
   if (error) throw error;

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCurrentReview } from "@/contexts/current-review";
 
@@ -9,6 +10,7 @@ const ReviewSwitcher = () => {
       <div className="px-4 pb-1 pt-3">
         <p className="text-xs uppercase tracking-wide text-sidebar-foreground/60">Review</p>
         <p className="truncate text-sm font-medium text-sidebar-foreground" title={review.name}>{review.name}</p>
+        <Link to="/protocol?tab=team" className="text-xs text-sidebar-foreground/70 underline">Manage team & name</Link>
       </div>
     );
   }
@@ -26,6 +28,7 @@ const ReviewSwitcher = () => {
           ))}
         </SelectContent>
       </Select>
+      <Link to="/protocol?tab=team" className="text-xs text-sidebar-foreground/70 underline">Manage team & name</Link>
     </div>
   );
 };

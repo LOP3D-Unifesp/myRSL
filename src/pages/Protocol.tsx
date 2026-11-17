@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ClipboardList, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -65,6 +66,7 @@ function serialize(form: ProtocolForm) {
 const Protocol = () => {
   const userId = useAuthUserId();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState<ProtocolForm>(EMPTY_FORM);
   const [baseline, setBaseline] = useState(() => serialize(EMPTY_FORM));
 
@@ -174,7 +176,7 @@ const Protocol = () => {
 
       <Card>
         <CardContent className="pt-6">
-          <Tabs defaultValue="databases" className="space-y-6">
+          <Tabs value={searchParams.get("tab") ?? "databases"} onValueChange={(tab) => setSearchParams({ tab }, { replace: true })} className="space-y-6">
             <TabsList>
               <TabsTrigger value="databases">Databases</TabsTrigger>
               <TabsTrigger value="eligibility">Eligibility</TabsTrigger>

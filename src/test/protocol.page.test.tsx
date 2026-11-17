@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,6 +20,7 @@ vi.mock("@/lib/protocol", () => ({
 }));
 
 vi.mock("@/contexts/current-review", () => ({
+  reviewsQueryKey: () => ["reviews"],
   useCurrentReview: () => ({ review: { id: "review-1", name: "Test review", role: "owner" }, reviews: [], selectReview: vi.fn() }),
 }));
 
@@ -26,6 +28,7 @@ vi.mock("@/lib/reviews", () => ({
   fetchReviewMembers: vi.fn().mockResolvedValue([]),
   addReviewMember: vi.fn(),
   removeReviewMember: vi.fn(),
+  renameReview: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -46,7 +49,9 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <AuthUserIdProvider userId="user-1">
-        <Protocol />
+        <MemoryRouter>
+          <Protocol />
+        </MemoryRouter>
       </AuthUserIdProvider>
     </QueryClientProvider>,
   );
