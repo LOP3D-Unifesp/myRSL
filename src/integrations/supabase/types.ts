@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_qa_assessments: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          qa_q1: string | null
+          qa_q2: string | null
+          qa_q3: string | null
+          qa_q4: string | null
+          qa_q5: string | null
+          qa_q6: string | null
+          qa_q7: string | null
+          qa_q8: string | null
+          qa_q9: string | null
+          qa_q10: string | null
+          qa_score: number | null
+          review_id: string
+          reviewer_id: string | null
+          reviewer_slot: number
+          updated_at: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          qa_q1?: string | null
+          qa_q2?: string | null
+          qa_q3?: string | null
+          qa_q4?: string | null
+          qa_q5?: string | null
+          qa_q6?: string | null
+          qa_q7?: string | null
+          qa_q8?: string | null
+          qa_q9?: string | null
+          qa_q10?: string | null
+          qa_score?: number | null
+          review_id?: string
+          reviewer_id?: string | null
+          reviewer_slot: number
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          qa_q1?: string | null
+          qa_q2?: string | null
+          qa_q3?: string | null
+          qa_q4?: string | null
+          qa_q5?: string | null
+          qa_q6?: string | null
+          qa_q7?: string | null
+          qa_q8?: string | null
+          qa_q9?: string | null
+          qa_q10?: string | null
+          qa_score?: number | null
+          review_id?: string
+          reviewer_id?: string | null
+          reviewer_slot?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       articles: {
         Row: {
           abstract: string | null
@@ -494,18 +557,21 @@ export type Database = {
       review_members: {
         Row: {
           created_at: string
+          reviewer_slot: number | null
           review_id: string
           role: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          reviewer_slot?: number | null
           review_id: string
           role: string
           user_id: string
         }
         Update: {
           created_at?: string
+          reviewer_slot?: number | null
           review_id?: string
           role?: string
           user_id?: string
@@ -567,6 +633,14 @@ export type Database = {
         Args: { p_name: string }
         Returns: string
       }
+      my_reviewer_slot: {
+        Args: { rid: string }
+        Returns: number | null
+      }
+      set_reviewer_slot: {
+        Args: { p_review_id: string; p_slot: number | null; p_user_id: string }
+        Returns: undefined
+      }
       save_protocol_lists: {
         Args: { p_criteria: Json; p_qa: Json; p_questions: Json; p_review_id: string }
         Returns: undefined
@@ -576,6 +650,7 @@ export type Database = {
         Returns: {
           email: string
           full_name: string | null
+          reviewer_slot: number | null
           role: string
           user_id: string
         }[]

@@ -11,6 +11,8 @@ interface Props {
   // Who completed each step and when; names are looked up by user id.
   stamps?: Partial<Record<VerificationKey, VerificationStamp>>;
   names?: Map<string, string>;
+  // Steps the current user may not change (they belong to the other reviewer).
+  locked?: Set<VerificationKey>;
 }
 
 function formatStamp(stamp: VerificationStamp | undefined, names: Map<string, string> | undefined): string {
@@ -22,7 +24,7 @@ function formatStamp(stamp: VerificationStamp | undefined, names: Map<string, st
   return [who, when].filter(Boolean).join(" · ");
 }
 
-const VerificationToggles = ({ values, onToggle, stamps, names }: Props) => {
+const VerificationToggles = ({ values, onToggle, stamps, names, locked }: Props) => {
   return (
     <div className="grid grid-cols-2 gap-2">
       {VERIFICATION_STAGES.map(({ key, label }) => {
@@ -37,6 +39,8 @@ const VerificationToggles = ({ values, onToggle, stamps, names }: Props) => {
                 active && "border-accent bg-accent text-accent-foreground hover:bg-accent/90"
               )}
               onClick={() => onToggle(key)}
+              disabled={locked?.has(key)}
+              title={locked?.has(key) ? "This step belongs to the other reviewer" : undefined}
             >
               <CheckCircle className="mr-1 h-4 w-4" />
               {label}

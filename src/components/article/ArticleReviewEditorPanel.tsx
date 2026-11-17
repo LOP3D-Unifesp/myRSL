@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQaQuestions, useResearchQuestionOptions } from "@/hooks/useProtocolData";
+import QaAssessmentPanel from "@/components/article/QaAssessmentPanel";
 import SourceDatabaseSelect from "@/components/article/SourceDatabaseSelect";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -153,9 +154,18 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
   };
 
   return (
-    <Accordion type="multiple" defaultValue={["qa"]} className="space-y-2">
+    <Accordion type="multiple" defaultValue={["qa-reviewers", "qa"]} className="space-y-2">
+      <Section title="QA by reviewer" dirty={false} value="qa-reviewers">
+        <QaAssessmentPanel
+          articleId={article.id}
+          questions={qaQuestions}
+          finalAnswers={qa}
+          onUseAnswer={(key, value) => setQa((previous) => ({ ...previous, [key]: value }))}
+        />
+      </Section>
+
       <Section
-        title="QA Review"
+        title="Final QA (consensus)"
         dirty={qaDirty}
         value="qa"
       >

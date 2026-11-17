@@ -6,7 +6,7 @@ import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
-import { useReviewMemberNames } from "@/hooks/useReviewMemberNames";
+import { useMyReviewerRole, useReviewMemberNames } from "@/hooks/useReviewMemberNames";
 import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
@@ -33,6 +33,7 @@ const ArticleDetail = () => {
   const userId = useAuthUserId();
   const qaQuestions = useQaQuestions();
   const memberNames = useReviewMemberNames();
+  const { slot: myReviewerSlot, isOwner: isReviewOwner } = useMyReviewerRole();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -147,8 +148,9 @@ const ArticleDetail = () => {
       invalidate();
       const stageLabel = verificationLabelFor(key);
       toast.success(`${stageLabel} ${article[key] ? "reverted" : "verified"}.`);
-    } catch {
-      toast.error("Failed to update verification.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      toast.error(/reviewer/i.test(message) ? message : "Failed to update verification.");
     }
   };
 
@@ -192,6 +194,12 @@ const ArticleDetail = () => {
     verify_qa3: { by: article.verify_qa3_by ?? null, at: article.verify_qa3_at ?? null },
     verify_qa4: { by: article.verify_qa4_by ?? null, at: article.verify_qa4_at ?? null },
   };
+  // Peer 1 / QA P1 belong to reviewer 1, Peer 2 / QA P2 to reviewer 2; owners may change any step.
+  const lockedSteps = new Set<VerificationKey>(
+    isReviewOwner || myReviewerSlot === null
+      ? []
+      : myReviewerSlot === 1 ? ["verify_peer2", "verify_qa4"] : ["verify_peer1", "verify_qa3"],
+  );
   const samePeerReviewer = Boolean(article.verify_peer1 && article.verify_peer2 && verificationStamps.verify_peer1.by && verificationStamps.verify_peer1.by === verificationStamps.verify_peer2.by);
   const fullyVerified = isFullyVerified(articleVerification);
   const verificationProgress = countCompletedVerifications(articleVerification);
@@ -277,7 +285,7 @@ const ArticleDetail = () => {
                     <p className="text-base font-medium">Review Verification</p>
                     <Badge variant="outline">{verificationProgress}/4 complete</Badge>
                   </div>
-                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} stamps={verificationStamps} names={memberNames} />
+                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} stamps={verificationStamps} names={memberNames} locked={lockedSteps} />
                   {samePeerReviewer ? (
                     <p className="text-xs text-warning-foreground" role="status">Peer 1 and Peer 2 were verified by the same person.</p>
                   ) : null}
