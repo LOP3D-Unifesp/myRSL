@@ -91,6 +91,11 @@ describe("QaAssessmentPanel", () => {
     expect(differing).toBeInTheDocument();
     fireEvent.click(differing.querySelectorAll("button")[0]);
     expect(onUse).toHaveBeenCalledWith("qa_q1", "Yes");
+
+    const scoreRow = screen.getByTestId("qa-score-row");
+    expect(scoreRow).toHaveTextContent("2 / 10");
+    expect(scoreRow).toHaveTextContent("1 / 10");
+    expect(scoreRow).toHaveTextContent("0 / 10");
   });
 
   it("explains how to get a reviewer number when none is assigned", async () => {

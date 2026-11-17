@@ -161,6 +161,14 @@ const QaAssessmentPanel = ({ articleId, questions, finalAnswers, onUseAnswer }: 
                   );
                 })}
               </tbody>
+              <tfoot className="border-t bg-muted/40 font-medium" data-testid="qa-score-row">
+                <tr>
+                  <td className="px-3 py-2">Score</td>
+                  <td className="px-3 py-2">{first ? `${calculateQAScore(first)} / 10` : "-"}</td>
+                  <td className="px-3 py-2">{second ? `${calculateQAScore(second)} / 10` : "-"}</td>
+                  <td className="px-3 py-2">{calculateQAScore(finalAnswers)} / 10</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         ) : !otherHidden ? (
