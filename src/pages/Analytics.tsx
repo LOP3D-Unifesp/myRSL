@@ -15,6 +15,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { buildFrequency, buildFrequencyFromNested, topNWithOthers } from "@/lib/analytics-utils";
 import { cn } from "@/lib/utils";
 import { ChartCard } from "@/components/analytics/ChartCard";
+import PrismaFlow from "@/components/analytics/PrismaFlow";
+import { buildPrismaCounts, fetchScreeningRecords } from "@/lib/screening";
+import { fetchProtocolCriteria } from "@/lib/protocol";
+import { protocolKeys } from "@/lib/article-query-keys";
 import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const OverviewSection = lazy(() => import("@/components/analytics/sections/OverviewSection"));
@@ -25,6 +29,7 @@ const ParticipantsTechSection = lazy(() => import("@/components/analytics/sectio
 const HIGHLIGHT_DURATION_MS = 1800;
 
 const ANALYTICS_SECTIONS = {
+  prisma: "prisma",
   cross: "cross",
   overview: "overview",
   geography: "geography",
@@ -78,6 +83,18 @@ const Analytics = () => {
     queryFn: fetchArticles,
     enabled: Boolean(userId),
   });
+
+  const { data: screeningRecords = [] } = useQuery({
+    queryKey: ["screening-records", userId ?? "no-user"],
+    queryFn: fetchScreeningRecords,
+    enabled: Boolean(userId),
+  });
+  const { data: protocolCriteria = [] } = useQuery({
+    queryKey: [...protocolKeys.protocol(userId), "criteria"],
+    queryFn: fetchProtocolCriteria,
+    enabled: Boolean(userId),
+  });
+  const prismaCounts = useMemo(() => buildPrismaCounts(screeningRecords, protocolCriteria), [screeningRecords, protocolCriteria]);
 
   const filtered = useMemo(() => {
     if (!search) return articles;
@@ -254,6 +271,13 @@ const Analytics = () => {
           </DashboardSection>
 
           <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="rounded-xl border border-border/80 bg-card px-4 shadow-sm">
+            <AccordionItem value={ANALYTICS_SECTIONS.prisma}>
+              <AccordionTrigger className="text-base font-semibold">PRISMA flow</AccordionTrigger>
+              <AccordionContent>
+                <PrismaFlow counts={prismaCounts} />
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value={ANALYTICS_SECTIONS.cross}>
               <AccordionTrigger className="text-base font-semibold">Cross-Analysis</AccordionTrigger>
               <AccordionContent>

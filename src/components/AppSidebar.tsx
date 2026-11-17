@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, FileText, PlusCircle, BarChart3, ClipboardList, LogOut, Menu, X, RefreshCw } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, BarChart3, ClipboardList, ListChecks, LogOut, Menu, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import ReviewSwitcher from "@/components/ReviewSwitcher";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/screening", icon: ListChecks, label: "Screening" },
   { to: "/articles", icon: FileText, label: "Articles" },
   { to: "/articles/new", icon: PlusCircle, label: "New Article" },
   { to: "/protocol", icon: ClipboardList, label: "Protocol" },

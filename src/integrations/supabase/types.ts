@@ -398,6 +398,75 @@ export type Database = {
         }
         Relationships: []
       }
+      screening_records: {
+        Row: {
+          abstract: string | null
+          article_id: string | null
+          authors: string | null
+          comments: string | null
+          created_at: string
+          criterion_code: string | null
+          doi: string | null
+          document_type: string | null
+          id: string
+          journal: string | null
+          keywords: string | null
+          review_id: string
+          screened_at: string | null
+          screened_by: string | null
+          source_database: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          url: string | null
+          year: number | null
+        }
+        Insert: {
+          abstract?: string | null
+          article_id?: string | null
+          authors?: string | null
+          comments?: string | null
+          created_at?: string
+          criterion_code?: string | null
+          doi?: string | null
+          document_type?: string | null
+          id?: string
+          journal?: string | null
+          keywords?: string | null
+          review_id: string
+          screened_at?: string | null
+          screened_by?: string | null
+          source_database?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Update: {
+          abstract?: string | null
+          article_id?: string | null
+          authors?: string | null
+          comments?: string | null
+          created_at?: string
+          criterion_code?: string | null
+          doi?: string | null
+          document_type?: string | null
+          id?: string
+          journal?: string | null
+          keywords?: string | null
+          review_id?: string
+          screened_at?: string | null
+          screened_by?: string | null
+          source_database?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
       review_members: {
         Row: {
           created_at: string

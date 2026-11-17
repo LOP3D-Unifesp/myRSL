@@ -25,6 +25,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ArticlesList = lazy(() => import("./pages/ArticlesList"));
 const ArticleForm = lazy(() => import("./pages/ArticleForm"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail"));
+const Screening = lazy(() => import("./pages/Screening"));
 const Protocol = lazy(() => import("./pages/Protocol"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const DoiConflictReview = lazy(() => import("./pages/DoiConflictReview"));
@@ -88,6 +89,7 @@ const App = () => (
               <Route path="/articles/:id" element={<ArticleDetail />} />
               <Route path="/articles/:id/edit" element={<ArticleForm />} />
               <Route path="/verifications" element={<Navigate to="/articles?status=pending" replace />} />
+              <Route path="/screening" element={<Screening />} />
               <Route path="/protocol" element={<Protocol />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/doi-sync/review" element={<DoiConflictReview />} />
