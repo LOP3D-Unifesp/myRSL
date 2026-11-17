@@ -6,6 +6,7 @@ import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import { useAuthUserId } from "@/contexts/auth-user-id";
 
 const ArticleDetail = () => {
   const userId = useAuthUserId();
+  const qaQuestions = useQaQuestions();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -316,7 +318,7 @@ const ArticleDetail = () => {
               </TabsContent>
 
               <TabsContent value="qa" className="space-y-2">
-                {QA_QUESTIONS.map((question) => (
+                {qaQuestions.map((question) => (
                   <div key={question.key} className="rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-foreground">{question.label}</span>

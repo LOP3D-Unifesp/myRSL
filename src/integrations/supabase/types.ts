@@ -240,6 +240,7 @@ export type Database = {
           search_string: string | null
           searched_at: string | null
           updated_at: string
+          url: string | null
           user_id: string
         }
         Insert: {
@@ -251,6 +252,7 @@ export type Database = {
           search_string?: string | null
           searched_at?: string | null
           updated_at?: string
+          url?: string | null
           user_id: string
         }
         Update: {
@@ -262,50 +264,135 @@ export type Database = {
           search_string?: string | null
           searched_at?: string | null
           updated_at?: string
+          url?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      protocol_criteria: {
+        Row: {
+          code: string
+          id: string
+          kind: string
+          position: number
+          review_id: string
+          text: string
+        }
+        Insert: {
+          code: string
+          id?: string
+          kind: string
+          position?: number
+          review_id: string
+          text: string
+        }
+        Update: {
+          code?: string
+          id?: string
+          kind?: string
+          position?: number
+          review_id?: string
+          text?: string
+        }
+        Relationships: []
+      }
+      protocol_qa_items: {
+        Row: {
+          description: string | null
+          label: string
+          review_id: string
+          slot: string
+        }
+        Insert: {
+          description?: string | null
+          label: string
+          review_id: string
+          slot: string
+        }
+        Update: {
+          description?: string | null
+          label?: string
+          review_id?: string
+          slot?: string
+        }
+        Relationships: []
+      }
+      protocol_questions: {
+        Row: {
+          code: string
+          id: string
+          is_main: boolean
+          label: string
+          position: number
+          review_id: string
+          text: string | null
+        }
+        Insert: {
+          code: string
+          id?: string
+          is_main?: boolean
+          label: string
+          position?: number
+          review_id: string
+          text?: string | null
+        }
+        Update: {
+          code?: string
+          id?: string
+          is_main?: boolean
+          label?: string
+          position?: number
+          review_id?: string
+          text?: string | null
         }
         Relationships: []
       }
       protocols: {
         Row: {
           created_at: string
-          exclusion_criteria: string[] | null
+          objective: string | null
+          picoc: Json
+          keywords: Json
+          search_string: string | null
+          title: string | null
           extraction_notes: string | null
           id: string
           review_id: string
-          inclusion_criteria: string[] | null
           languages: string[] | null
           period_from: number | null
           period_to: number | null
-          research_questions: string[] | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          exclusion_criteria?: string[] | null
+          objective?: string | null
+          picoc?: Json
+          keywords?: Json
+          search_string?: string | null
+          title?: string | null
           extraction_notes?: string | null
           id?: string
           review_id?: string
-          inclusion_criteria?: string[] | null
           languages?: string[] | null
           period_from?: number | null
           period_to?: number | null
-          research_questions?: string[] | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          exclusion_criteria?: string[] | null
+          objective?: string | null
+          picoc?: Json
+          keywords?: Json
+          search_string?: string | null
+          title?: string | null
           extraction_notes?: string | null
           id?: string
           review_id?: string
-          inclusion_criteria?: string[] | null
           languages?: string[] | null
           period_from?: number | null
           period_to?: number | null
-          research_questions?: string[] | null
           updated_at?: string
           user_id?: string
         }
@@ -386,6 +473,10 @@ export type Database = {
       create_review: {
         Args: { p_name: string }
         Returns: string
+      }
+      save_protocol_lists: {
+        Args: { p_criteria: Json; p_qa: Json; p_questions: Json; p_review_id: string }
+        Returns: undefined
       }
       list_review_members: {
         Args: { p_review_id: string }

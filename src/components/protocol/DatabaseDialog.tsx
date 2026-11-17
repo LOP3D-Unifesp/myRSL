@@ -19,6 +19,7 @@ const DatabaseDialog = ({ open, database, existingNames, onOpenChange, onSubmit 
   const [searchedAt, setSearchedAt] = useState("");
   const [results, setResults] = useState("");
   const [searchString, setSearchString] = useState("");
+  const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ const DatabaseDialog = ({ open, database, existingNames, onOpenChange, onSubmit 
     setSearchedAt(database?.searched_at ?? "");
     setResults(database?.results_count != null ? String(database.results_count) : "");
     setSearchString(database?.search_string ?? "");
+    setUrl(database?.url ?? "");
   }, [open, database]);
 
   const trimmed = name.trim();
@@ -41,6 +43,7 @@ const DatabaseDialog = ({ open, database, existingNames, onOpenChange, onSubmit 
         {
           name: trimmed,
           search_string: searchString.trim() || null,
+          url: url.trim() || null,
           searched_at: searchedAt || null,
           results_count: results.trim() ? Number(results) : null,
         },
@@ -74,6 +77,10 @@ const DatabaseDialog = ({ open, database, existingNames, onOpenChange, onSubmit 
               <Label htmlFor="db-results">Results</Label>
               <Input id="db-results" type="number" min={0} value={results} onChange={(e) => setResults(e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="db-url">Address</Label>
+            <Input id="db-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
           </div>
           {name && error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           <div className="space-y-2">

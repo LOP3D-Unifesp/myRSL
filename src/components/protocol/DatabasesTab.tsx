@@ -58,7 +58,9 @@ const DatabasesTab = ({ databases, onSave, onDelete }: Props) => {
           <TableBody>
             {databases.map((database) => (
               <TableRow key={database.id}>
-                <TableCell className="font-medium">{database.name}</TableCell>
+                <TableCell className="font-medium">
+                  {database.url ? <a href={database.url} target="_blank" rel="noreferrer" className="underline">{database.name}</a> : database.name}
+                </TableCell>
                 <TableCell>{database.searched_at ?? "-"}</TableCell>
                 <TableCell className="text-right">{database.results_count?.toLocaleString() ?? "-"}</TableCell>
                 <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground" title={database.search_string ?? undefined}>

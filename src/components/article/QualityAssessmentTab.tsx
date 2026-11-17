@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
+import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { updateArticle } from "@/lib/articles";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ interface Props {
 const QualityAssessmentTab = ({ article, onUpdated }: Props) => {
   const [answers, setAnswers] = useState<Record<QAKey, string | null>>({} as Record<QAKey, string | null>);
   const [saving, setSaving] = useState(false);
+  const qaQuestions = useQaQuestions();
 
   useEffect(() => {
     const initial = {} as Record<QAKey, string | null>;
@@ -58,7 +60,7 @@ const QualityAssessmentTab = ({ article, onUpdated }: Props) => {
         </Button>
       </div>
 
-      {QA_QUESTIONS.map((q) => (
+      {qaQuestions.map((q) => (
         <Card key={q.key}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">{q.label}</CardTitle>

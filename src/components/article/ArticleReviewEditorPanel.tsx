@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQaQuestions, useResearchQuestionOptions } from "@/hooks/useProtocolData";
 import SourceDatabaseSelect from "@/components/article/SourceDatabaseSelect";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { calculateQAScore, QA_QUESTIONS, type QAKey } from "@/lib/qa-questions";
 import { updateArticle, type Article, type ArticleInsert } from "@/lib/articles";
 import {
-  ALL_RESEARCH_QUESTIONS,
   AMPUTATION_CAUSES,
   AMPUTATION_LEVELS,
   CONTROL_STRATEGIES,
@@ -22,7 +22,6 @@ import {
   HAS_PEDIATRIC_PARTICIPANTS,
   PROSTHESIS_LEVELS,
   PUBLICATION_TYPES,
-  RESEARCH_QUESTIONS,
   SETTINGS,
   SENSORS,
   STATISTICAL_TESTS_PERFORMED,
@@ -79,6 +78,8 @@ const SECTION_FIELDS: Record<Exclude<SectionKey, "qa">, Array<keyof FormState>> 
 
 const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePreviewChange }: Props) => {
   const [saving, setSaving] = useState<SectionKey | null>(null);
+  const researchQuestionOptions = useResearchQuestionOptions();
+  const qaQuestions = useQaQuestions();
   const [form, setForm] = useState<FormState>(buildState(article));
   const [base, setBase] = useState<FormState>(buildState(article));
   const [qa, setQa] = useState<Record<QAKey, string | null>>({} as Record<QAKey, string | null>);
@@ -158,7 +159,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
         dirty={qaDirty}
         value="qa"
       >
-        {QA_QUESTIONS.map((q) => (
+        {qaQuestions.map((q) => (
           <div key={q.key} className="rounded-md border border-border/60 bg-background/40 p-3">
             <p className="text-sm font-medium">{q.label}</p>
             <p className="mb-2 text-sm text-muted-foreground">{q.description}</p>
@@ -234,8 +235,8 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
       </Section>
 
       <Section title="Section 6: Research Scope" dirty={sectionDirty("research")} value="research">
-        <Radio label="A. Primary research question addressed (select one)" value={form.primary_research_question} options={RESEARCH_QUESTIONS} onChange={(v) => setForm((p) => ({ ...p, primary_research_question: v }))} />
-        <Multi label="B. All applicable research questions (select many)" options={ALL_RESEARCH_QUESTIONS} selected={form.research_questions} onToggle={(v) => setForm((p) => ({ ...p, research_questions: toggleArrayValue(p.research_questions, v) }))} />
+        <Radio label="A. Primary research question addressed (select one)" value={form.primary_research_question} options={researchQuestionOptions} onChange={(v) => setForm((p) => ({ ...p, primary_research_question: v }))} />
+        <Multi label="B. All applicable research questions (select many)" options={researchQuestionOptions} selected={form.research_questions} onToggle={(v) => setForm((p) => ({ ...p, research_questions: toggleArrayValue(p.research_questions, v) }))} />
         <Actions dirty={sectionDirty("research")} saving={saving === "research"} onDiscard={() => discard("research")} onSave={() => saveSection("research")} />
       </Section>
 
