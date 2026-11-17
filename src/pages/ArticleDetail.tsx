@@ -207,6 +207,7 @@ const ArticleDetail = () => {
     acc[question.key] = article[question.key];
     return acc;
   }, {} as Record<QAKey, string | null>);
+  const decidedQaItems = QA_QUESTIONS.filter((question) => Boolean(qaAnswers[question.key])).length;
   const persistedQaScore = article.qa_score ?? calculateQAScore(qaAnswers);
   const qaScore = qaPreviewScore ?? persistedQaScore;
   const qaTone = qaScore >= 7 ? "text-accent" : qaScore >= 4 ? "text-warning" : "text-destructive";
@@ -299,8 +300,11 @@ const ArticleDetail = () => {
                     <Badge variant="outline" className={reviewSessionBadgeTone}>{reviewSessionState}</Badge>
                   </div>
                   <div className="rounded-md border border-border/70 bg-card px-3 py-2">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">QA Score</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Final QA score</p>
                     <p className={`text-2xl font-semibold ${qaTone}`}>{qaScore} / 10</p>
+                    {decidedQaItems < QA_QUESTIONS.length ? (
+                      <p className="text-xs text-muted-foreground">{decidedQaItems} of {QA_QUESTIONS.length} items decided</p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Verification progress</span>
