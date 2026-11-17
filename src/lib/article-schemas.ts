@@ -79,6 +79,24 @@ export function sanitizeArticleWriteInput(input: unknown): ArticleWriteInput {
   return articleWriteSchema.parse(input);
 }
 
+function isEmptyExtractedValue(value: unknown) {
+  return value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+// Validates field by field so one invalid value does not discard the whole extraction.
+// Empty values are dropped so existing article data is not overwritten with blanks.
 export function sanitizeExtractedArticle(input: unknown): ExtractedArticleInput {
-  return extractedArticleSchema.parse(input);
+  if (!input || typeof input !== "object") return {};
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    const fieldSchema = (articleWriteSchema.shape as Record<string, z.ZodTypeAny>)[key];
+    if (!fieldSchema || isEmptyExtractedValue(value)) continue;
+    let candidate = value;
+    if (Array.isArray(candidate)) {
+      candidate = candidate.filter((item) => typeof item === "string" && item.trim() !== "").map((item: string) => item.slice(0, 200)).slice(0, 50);
+    }
+    const parsed = fieldSchema.safeParse(candidate);
+    if (parsed.success && !isEmptyExtractedValue(parsed.data)) result[key] = parsed.data;
+  }
+  return result as ExtractedArticleInput;
 }

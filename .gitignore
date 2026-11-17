@@ -26,3 +26,6 @@ supabase/.temp
 *.njsproj
 *.sln
 *.sw?
+
+# local PDFs for one-off bulk upload
+pdfs-import/
