@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, FilePlus2, ListChecks, Upload } from "lucide-react";
+import { ExternalLink, FilePlus2, ListChecks, Search, SlidersHorizontal, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,14 +44,36 @@ const STATUS_VARIANT: Record<ScreeningStatus, "default" | "secondary" | "outline
   unclassified: "outline",
 };
 
+type ArticleFilter = "all" | "linked" | "unlinked";
+type ScreeningSort = "title_asc" | "year_desc" | "year_asc" | "database" | "decided_desc";
+
+function parseArticleFilter(value: string | null): ArticleFilter {
+  return value === "linked" || value === "unlinked" ? value : "all";
+}
+
+function parseSort(value: string | null): ScreeningSort {
+  return value === "year_desc" || value === "year_asc" || value === "database" || value === "decided_desc" ? value : "title_asc";
+}
+
 const Screening = () => {
   const userId = useAuthUserId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<ScreeningStatus | "all">("all");
-  const [source, setSource] = useState("all");
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const initialStatus = searchParams.get("status") ?? "all";
+  const [status, setStatus] = useState<ScreeningStatus | "all">(isScreeningStatus(initialStatus) ? initialStatus : "all");
+  const [source, setSource] = useState(searchParams.get("database") ?? "all");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [yearFrom, setYearFrom] = useState(searchParams.get("year_from") ?? "all");
+  const [yearTo, setYearTo] = useState(searchParams.get("year_to") ?? "all");
+  const [criterionFilter, setCriterionFilter] = useState(searchParams.get("criterion") ?? "all");
+  const [articleFilter, setArticleFilter] = useState<ArticleFilter>(parseArticleFilter(searchParams.get("article")));
+  const [sort, setSort] = useState<ScreeningSort>(parseSort(searchParams.get("sort")));
+  const [page, setPage] = useState(Math.max(1, Number(searchParams.get("page")) || 1));
+  const [showAdvanced, setShowAdvanced] = useState(
+    ["database", "year_from", "year_to", "criterion", "article"].some((key) => searchParams.has(key)),
+  );
   const [deciding, setDeciding] = useState<ScreeningRecord | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
@@ -72,19 +95,79 @@ const Screening = () => {
     [records],
   );
 
+  const years = useMemo(
+    () => Array.from(new Set(records.map((record) => record.year).filter((year): year is number => year != null))).sort((x, y) => y - x),
+    [records],
+  );
+
+  const criterionCodes = useMemo(
+    () => Array.from(new Set(records.map((record) => record.criterion_code).filter(Boolean) as string[])).sort((x, y) => x.localeCompare(y, undefined, { numeric: true })),
+    [records],
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return records.filter((record) => {
+    const from = yearFrom === "all" ? null : Number(yearFrom);
+    const to = yearTo === "all" ? null : Number(yearTo);
+    const rows = records.filter((record) => {
       if (status !== "all" && record.status !== status) return false;
       if (source !== "all" && record.source_database !== source) return false;
+      if (from != null && (record.year == null || record.year < from)) return false;
+      if (to != null && (record.year == null || record.year > to)) return false;
+      if (criterionFilter === "none" && record.criterion_code) return false;
+      if (criterionFilter !== "all" && criterionFilter !== "none" && record.criterion_code !== criterionFilter) return false;
+      if (articleFilter === "linked" && !record.article_id) return false;
+      if (articleFilter === "unlinked" && record.article_id) return false;
       if (!term) return true;
-      return [record.title, record.authors, record.doi, record.journal].filter(Boolean).join(" ").toLowerCase().includes(term);
+      return [record.title, record.authors, record.doi, record.journal, record.comments].filter(Boolean).join(" ").toLowerCase().includes(term);
     });
-  }, [records, status, source, search]);
+
+    const byTitle = (x: ScreeningRecord, y: ScreeningRecord) => (x.title ?? "").localeCompare(y.title ?? "");
+    return [...rows].sort((x, y) => {
+      if (sort === "year_desc") return (y.year ?? 0) - (x.year ?? 0) || byTitle(x, y);
+      if (sort === "year_asc") return (x.year ?? 9999) - (y.year ?? 9999) || byTitle(x, y);
+      if (sort === "database") return (x.source_database ?? "").localeCompare(y.source_database ?? "") || byTitle(x, y);
+      if (sort === "decided_desc") return (y.screened_at ?? "").localeCompare(x.screened_at ?? "") || byTitle(x, y);
+      return byTitle(x, y);
+    });
+  }, [records, status, source, search, yearFrom, yearTo, criterionFilter, articleFilter, sort]);
+
+  const advancedFiltersCount =
+    (source !== "all" ? 1 : 0)
+    + (yearFrom !== "all" ? 1 : 0)
+    + (yearTo !== "all" ? 1 : 0)
+    + (criterionFilter !== "all" ? 1 : 0)
+    + (articleFilter !== "all" ? 1 : 0);
+
+  const clearFilters = () => {
+    setStatus("all");
+    setSource("all");
+    setSearch("");
+    setYearFrom("all");
+    setYearTo("all");
+    setCriterionFilter("all");
+    setArticleFilter("all");
+    setSort("title_asc");
+    setPage(1);
+  };
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("q", search.trim());
+    if (status !== "all") params.set("status", status);
+    if (source !== "all") params.set("database", source);
+    if (yearFrom !== "all") params.set("year_from", yearFrom);
+    if (yearTo !== "all") params.set("year_to", yearTo);
+    if (criterionFilter !== "all") params.set("criterion", criterionFilter);
+    if (articleFilter !== "all") params.set("article", articleFilter);
+    if (sort !== "title_asc") params.set("sort", sort);
+    if (currentPage > 1) params.set("page", String(currentPage));
+    if (params.toString() !== searchParams.toString()) setSearchParams(params, { replace: true });
+  }, [search, status, source, yearFrom, yearTo, criterionFilter, articleFilter, sort, currentPage, searchParams, setSearchParams]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: screeningKeys.records(userId) });
 
@@ -160,26 +243,120 @@ const Screening = () => {
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              placeholder="Search title, authors, journal, or DOI..."
-              aria-label="Search records"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-            <Select value={source} onValueChange={(value) => { setSource(value); setPage(1); }}>
-              <SelectTrigger className="sm:w-52" aria-label="Database"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All databases</SelectItem>
-                {sources.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced} className="space-y-3">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_auto]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-10"
+                  placeholder="Search title, authors, journal, DOI, or comments..."
+                  aria-label="Search records"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                />
+              </div>
+              <Select value={sort} onValueChange={(value) => { setSort(parseSort(value)); setPage(1); }}>
+                <SelectTrigger aria-label="Sort"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="title_asc">Sort: Title (A-Z)</SelectItem>
+                  <SelectItem value="year_desc">Sort: Year (Newest)</SelectItem>
+                  <SelectItem value="year_asc">Sort: Year (Oldest)</SelectItem>
+                  <SelectItem value="database">Sort: Database</SelectItem>
+                  <SelectItem value="decided_desc">Sort: Recently decided</SelectItem>
+                </SelectContent>
+              </Select>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" aria-label="Toggle advanced filters">
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />Filters
+                  {advancedFiltersCount > 0 ? <Badge variant="secondary" className="ml-2 text-[11px]">{advancedFiltersCount}</Badge> : null}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent>
+              <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <Select value={source} onValueChange={(value) => { setSource(value); setPage(1); }}>
+                    <SelectTrigger aria-label="Database"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All databases</SelectItem>
+                      {sources.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={yearFrom}
+                    onValueChange={(value) => {
+                      setYearFrom(value);
+                      if (yearTo !== "all" && value !== "all" && Number(value) > Number(yearTo)) setYearTo(value);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger aria-label="Year from"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Year from: Any</SelectItem>
+                      {years.map((year) => <SelectItem key={`from-${year}`} value={String(year)}>From {year}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={yearTo}
+                    onValueChange={(value) => {
+                      setYearTo(value);
+                      if (yearFrom !== "all" && value !== "all" && Number(value) < Number(yearFrom)) setYearFrom(value);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger aria-label="Year to"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Year to: Any</SelectItem>
+                      {years.map((year) => <SelectItem key={`to-${year}`} value={String(year)}>To {year}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={criterionFilter} onValueChange={(value) => { setCriterionFilter(value); setPage(1); }}>
+                    <SelectTrigger aria-label="Criterion"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All criteria</SelectItem>
+                      <SelectItem value="none">No criterion</SelectItem>
+                      {criterionCodes.map((code) => {
+                        const text = criteria.find((item) => item.code === code)?.text;
+                        return <SelectItem key={code} value={code}>{text ? `${code} - ${text.slice(0, 40)}` : code}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={articleFilter} onValueChange={(value) => { setArticleFilter(parseArticleFilter(value)); setPage(1); }}>
+                    <SelectTrigger aria-label="Article"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Article: Any</SelectItem>
+                      <SelectItem value="linked">With article</SelectItem>
+                      <SelectItem value="unlinked">Without article</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {records.length > 0 ? (
+            <p className="text-sm text-muted-foreground">{filtered.length} of {records.length} records</p>
+          ) : null}
 
           {records.length === 0 && !isLoading ? (
             <div className="rounded-md border border-dashed px-4 py-10 text-center">
               <p className="font-medium">No records yet</p>
               <p className="mt-1 text-sm text-muted-foreground">Import the articles export from Parsifal to bring in your screening.</p>
+            </div>
+          ) : filtered.length === 0 && !isLoading ? (
+            <div className="rounded-md border border-dashed px-4 py-10 text-center">
+              <p className="font-medium">No records match these filters</p>
+              <Button variant="link" onClick={clearFilters}>Clear filters</Button>
             </div>
           ) : (
             <Table>
@@ -236,7 +413,7 @@ const Screening = () => {
 
           {filtered.length > PAGE_SIZE ? (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{filtered.length} records, page {currentPage} of {pageCount}</span>
+              <span className="text-muted-foreground">Page {currentPage} of {pageCount}</span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
                 <Button size="sm" variant="outline" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>

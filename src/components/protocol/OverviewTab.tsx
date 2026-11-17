@@ -19,12 +19,12 @@ type Props = {
   onChange: (values: OverviewValues) => void;
 };
 
-const PICOC_FIELDS: Array<{ key: keyof Picoc; label: string; hint: string }> = [
-  { key: "population", label: "Population", hint: "Who is studied" },
-  { key: "intervention", label: "Intervention", hint: "What is applied or evaluated" },
-  { key: "comparison", label: "Comparison", hint: "Not mandatory" },
-  { key: "outcome", label: "Outcome", hint: "What is measured" },
-  { key: "context", label: "Context", hint: "Where it happens" },
+const PICOC_FIELDS: Array<{ key: keyof Picoc; letter: string; label: string; hint: string }> = [
+  { key: "population", letter: "P", label: "Population", hint: "Who is studied" },
+  { key: "intervention", letter: "I", label: "Intervention", hint: "What is applied or evaluated" },
+  { key: "comparison", letter: "C", label: "Comparison", hint: "Optional" },
+  { key: "outcome", letter: "O", label: "Outcome", hint: "What is measured" },
+  { key: "context", letter: "C", label: "Context", hint: "Where it happens" },
 ];
 
 const OverviewTab = ({ values, periodError, onChange }: Props) => (
@@ -40,18 +40,29 @@ const OverviewTab = ({ values, periodError, onChange }: Props) => (
       </div>
     </section>
 
-    <section className="space-y-3">
-      <h3 className="text-base font-semibold">PICOC</h3>
-      <div className="grid gap-4 md:grid-cols-2">
-        {PICOC_FIELDS.map(({ key, label, hint }) => (
-          <div key={key} className="space-y-2">
-            <Label htmlFor={`picoc-${key}`}>{label} <span className="font-normal text-muted-foreground">- {hint}</span></Label>
-            <Textarea
-              id={`picoc-${key}`}
-              rows={3}
-              value={values.picoc[key]}
-              onChange={(e) => onChange({ ...values, picoc: { ...values.picoc, [key]: e.target.value } })}
-            />
+    <section className="space-y-4">
+      <div>
+        <h3 className="text-base font-semibold">PICOC</h3>
+        <p className="text-sm text-muted-foreground">The framework behind the question: who, what, against what, measured how, and where.</p>
+      </div>
+      <div className="divide-y rounded-lg border">
+        {PICOC_FIELDS.map(({ key, letter, label, hint }) => (
+          <div key={key} className="grid gap-3 p-4 sm:grid-cols-[3.5rem_1fr]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-xl font-semibold text-primary" aria-hidden>
+              {letter}
+            </div>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <Label htmlFor={`picoc-${key}`} className="text-sm font-semibold">{label}</Label>
+                <span className="text-xs text-muted-foreground">{hint}</span>
+              </div>
+              <Textarea
+                id={`picoc-${key}`}
+                rows={2}
+                value={values.picoc[key]}
+                onChange={(e) => onChange({ ...values, picoc: { ...values.picoc, [key]: e.target.value } })}
+              />
+            </div>
           </div>
         ))}
       </div>

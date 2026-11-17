@@ -138,7 +138,7 @@ describe("Protocol page", () => {
     await screen.findByRole("tab", { name: "Overview" });
 
     type("Title", "Pediatric prostheses");
-    fireEvent.change(screen.getByLabelText(/^Population/), { target: { value: "Children with limb absence" } });
+    fireEvent.change(screen.getByLabelText("Population"), { target: { value: "Children with limb absence" } });
     fireEvent.click(screen.getByRole("button", { name: "Add keyword" }));
     type("Keyword 1", "pediatric");
     type("Synonyms of keyword 1", "child, children");

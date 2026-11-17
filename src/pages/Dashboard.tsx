@@ -93,7 +93,9 @@ const Dashboard = () => {
   }, [articles]);
 
   const workQueue = useMemo(() => {
+    // Only items that still need action: drafts to finish and articles awaiting verification.
     return articles
+      .filter((article) => article.is_draft || !isFullyVerified(article))
       .map(buildQueueItem)
       .sort((a, b) => a.priority - b.priority || (new Date(b.article.updated_at ?? b.article.created_at ?? 0).getTime() - new Date(a.article.updated_at ?? a.article.created_at ?? 0).getTime()))
       .slice(0, 8);
@@ -176,7 +178,7 @@ const Dashboard = () => {
 
       <DashboardSection
         title="Work Queue"
-        subtitle="Priority-ordered items that need action now."
+        subtitle="Drafts to finish first, then articles still awaiting verification."
         variant="priority"
         action={
           <Button asChild variant="outline" size="sm">
@@ -184,6 +186,11 @@ const Dashboard = () => {
           </Button>
         }
       >
+        {workQueue.length === 0 ? (
+          <p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            All caught up: no drafts and every article is verified.
+          </p>
+        ) : null}
         <ol className="space-y-2.5">
           {workQueue.map((item, index) => (
             <li

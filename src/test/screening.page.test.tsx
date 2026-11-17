@@ -45,12 +45,12 @@ const record = (overrides: Record<string, unknown>) => ({
   ...overrides,
 });
 
-function renderPage() {
+function renderPage(entry = "/screening") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <AuthUserIdProvider userId="user-1">
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>
           <Screening />
         </MemoryRouter>
       </AuthUserIdProvider>
@@ -67,7 +67,8 @@ describe("Screening page", () => {
     mocks.fetchRecordsMock.mockResolvedValue([
       record({ id: "r1", title: "First accepted", status: "accepted" }),
       record({ id: "r2", title: "Second rejected", status: "rejected", criterion_code: "EC1", source_database: "IEEE" }),
-      record({ id: "r3", title: "Third duplicate", status: "duplicate" }),
+      record({ id: "r3", title: "Third duplicate", status: "duplicate", year: 2018 }),
+      record({ id: "r4", title: "Fourth linked", status: "accepted", article_id: "a-4", year: 2022 }),
     ]);
   });
 
@@ -79,6 +80,28 @@ describe("Screening page", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Rejected/ }));
     expect(screen.queryByText("First accepted")).not.toBeInTheDocument();
     expect(screen.getByText("Second rejected")).toBeInTheDocument();
+  });
+
+  it("applies filters from the address and clears them", async () => {
+    renderPage("/screening?article=unlinked&year_from=2020&criterion=EC1");
+    expect(await screen.findByText("Second rejected")).toBeInTheDocument();
+    expect(screen.queryByText("First accepted")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fourth linked")).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 4 records")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle advanced filters" })).toHaveTextContent("3");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Clear filters" })[0]);
+    expect(await screen.findByText("First accepted")).toBeInTheDocument();
+    expect(screen.getByText("4 of 4 records")).toBeInTheDocument();
+  });
+
+  it("filters by search text and year range", async () => {
+    renderPage("/screening?year_to=2019");
+    expect(await screen.findByText("Third duplicate")).toBeInTheDocument();
+    expect(screen.queryByText("First accepted")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search records"), { target: { value: "nothing matches" } });
+    expect(screen.getByText("No records match these filters")).toBeInTheDocument();
   });
 
   it("saves a decision with the chosen status", async () => {

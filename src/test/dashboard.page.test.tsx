@@ -122,7 +122,7 @@ describe("Dashboard", () => {
     expect(peer2Card.compareDocumentPosition(pendingCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("prioritizes draft and pending actions before verified items in queue", () => {
+  it("lists drafts before pending articles and leaves verified ones out of the queue", () => {
     render(
       <MemoryRouter>
         <Dashboard />
@@ -137,13 +137,12 @@ describe("Dashboard", () => {
 
     expect(actionLabels.some((label) => label.includes("Continue"))).toBe(true);
     expect(actionLabels.some((label) => label.includes("Review"))).toBe(true);
-    expect(actionLabels.some((label) => label.includes("Open"))).toBe(true);
+    expect(actionLabels.some((label) => label.includes("Open"))).toBe(false);
+    expect(within(queueSection).queryByText("Verified")).not.toBeInTheDocument();
 
     const continueIndex = actionLabels.findIndex((label) => label.includes("Continue"));
     const reviewIndex = actionLabels.findIndex((label) => label.includes("Review"));
-    const openIndex = actionLabels.findIndex((label) => label.includes("Open"));
 
     expect(continueIndex).toBeLessThan(reviewIndex);
-    expect(reviewIndex).toBeLessThan(openIndex);
   });
 });

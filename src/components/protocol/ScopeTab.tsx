@@ -39,7 +39,8 @@ const ScopeTab = ({ values, periodError, onChange }: Props) => {
         </div>
         <div className="space-y-2">
           <Label htmlFor="protocol-to">Period to (year)</Label>
-          <Input id="protocol-to" type="number" value={values.period_to} onChange={(e) => set("period_to", e.target.value)} />
+          <Input id="protocol-to" type="number" placeholder="Present" value={values.period_to} onChange={(e) => set("period_to", e.target.value)} />
+          <p className="text-xs text-muted-foreground">Leave empty when the search runs up to the present.</p>
         </div>
         {periodError ? <p role="alert" className="text-sm text-destructive sm:col-span-2">{periodError}</p> : null}
       </div>
