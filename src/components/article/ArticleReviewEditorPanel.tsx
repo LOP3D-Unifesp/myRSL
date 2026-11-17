@@ -169,6 +169,9 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
         dirty={qaDirty}
         value="qa"
       >
+        <p className="text-sm text-muted-foreground">
+          The agreed answers after comparing both reviewers. Items the reviewers answered differently stay empty until you decide them, using Use in the comparison above or the options below.
+        </p>
         {qaQuestions.map((q) => (
           <div key={q.key} className="rounded-md border border-border/60 bg-background/40 p-3">
             <p className="text-sm font-medium">{q.label}</p>
