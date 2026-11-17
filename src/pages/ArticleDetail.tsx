@@ -6,6 +6,7 @@ import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { useReviewMemberNames } from "@/hooks/useReviewMemberNames";
 import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
@@ -31,6 +32,7 @@ import { useAuthUserId } from "@/contexts/auth-user-id";
 const ArticleDetail = () => {
   const userId = useAuthUserId();
   const qaQuestions = useQaQuestions();
+  const memberNames = useReviewMemberNames();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -184,6 +186,13 @@ const ArticleDetail = () => {
     verify_qa3: article.verify_qa3,
     verify_qa4: article.verify_qa4,
   } as const;
+  const verificationStamps = {
+    verify_peer1: { by: article.verify_peer1_by ?? null, at: article.verify_peer1_at ?? null },
+    verify_peer2: { by: article.verify_peer2_by ?? null, at: article.verify_peer2_at ?? null },
+    verify_qa3: { by: article.verify_qa3_by ?? null, at: article.verify_qa3_at ?? null },
+    verify_qa4: { by: article.verify_qa4_by ?? null, at: article.verify_qa4_at ?? null },
+  };
+  const samePeerReviewer = Boolean(article.verify_peer1 && article.verify_peer2 && verificationStamps.verify_peer1.by && verificationStamps.verify_peer1.by === verificationStamps.verify_peer2.by);
   const fullyVerified = isFullyVerified(articleVerification);
   const verificationProgress = countCompletedVerifications(articleVerification);
   const qaAnswers = QA_QUESTIONS.reduce((acc, question) => {
@@ -268,7 +277,10 @@ const ArticleDetail = () => {
                     <p className="text-base font-medium">Review Verification</p>
                     <Badge variant="outline">{verificationProgress}/4 complete</Badge>
                   </div>
-                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} />
+                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} stamps={verificationStamps} names={memberNames} />
+                  {samePeerReviewer ? (
+                    <p className="text-xs text-warning-foreground" role="status">Peer 1 and Peer 2 were verified by the same person.</p>
+                  ) : null}
                 </CardContent>
               </Card>
 

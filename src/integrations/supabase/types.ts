@@ -84,6 +84,14 @@ export type Database = {
           verify_peer2: boolean
           verify_qa3: boolean
           verify_qa4: boolean
+          verify_peer1_at: string | null
+          verify_peer1_by: string | null
+          verify_peer2_at: string | null
+          verify_peer2_by: string | null
+          verify_qa3_at: string | null
+          verify_qa3_by: string | null
+          verify_qa4_at: string | null
+          verify_qa4_by: string | null
           year: number | null
         }
         Insert: {
@@ -155,6 +163,14 @@ export type Database = {
           verify_peer2?: boolean
           verify_qa3?: boolean
           verify_qa4?: boolean
+          verify_peer1_at?: string | null
+          verify_peer1_by?: string | null
+          verify_peer2_at?: string | null
+          verify_peer2_by?: string | null
+          verify_qa3_at?: string | null
+          verify_qa3_by?: string | null
+          verify_qa4_at?: string | null
+          verify_qa4_by?: string | null
           year?: number | null
         }
         Update: {
@@ -226,6 +242,14 @@ export type Database = {
           verify_peer2?: boolean
           verify_qa3?: boolean
           verify_qa4?: boolean
+          verify_peer1_at?: string | null
+          verify_peer1_by?: string | null
+          verify_peer2_at?: string | null
+          verify_peer2_by?: string | null
+          verify_qa3_at?: string | null
+          verify_qa3_by?: string | null
+          verify_qa4_at?: string | null
+          verify_qa4_by?: string | null
           year?: number | null
         }
         Relationships: []
