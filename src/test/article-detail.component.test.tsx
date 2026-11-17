@@ -19,6 +19,7 @@ const articleFixture: Article = {
   study_id: null,
   source_database: null,
   review_id: "review-1",
+  qa_consensus_status: "not_assessed",
   author: "Alice",
   first_author: "Alice",
   last_author: null,

@@ -36,6 +36,7 @@ import { PlusCircle, Search, Pencil, Trash2, FileText, ChevronLeft, ChevronRight
 import { toast } from "sonner";
 import PageHeader from "@/components/layout/PageHeader";
 import PageState from "@/components/layout/PageState";
+import { QA_STATUSES, QA_STATUS_LABELS, isQaStatus, qaStatusOf, qaStatusTone } from "@/lib/qa-status";
 import { StatusBadge } from "@/components/article/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -122,6 +123,7 @@ const ArticlesList = () => {
   const initialPage = parsePositiveInt(searchParams.get("page"), 1);
   const initialCountry = searchParams.get("country") ?? "all";
   const initialSourceDatabase = searchParams.get("database") ?? "all";
+  const initialQaStatus = isQaStatus(searchParams.get("qa_status")) ? (searchParams.get("qa_status") as string) : "all";
   const initialYearFrom = parseYearParam(searchParams.get("year_from"));
   const initialYearTo = parseYearParam(searchParams.get("year_to"));
   const initialQaMin = parseQaParam(searchParams.get("qa_min"));
@@ -140,6 +142,7 @@ const ArticlesList = () => {
   const [syncing, setSyncing] = useState(false);
   const [country, setCountry] = useState(initialCountry);
   const [sourceDatabase, setSourceDatabase] = useState(initialSourceDatabase);
+  const [qaStatus, setQaStatus] = useState(initialQaStatus);
   const [yearFrom, setYearFrom] = useState(initialYearFrom);
   const [yearTo, setYearTo] = useState(initialYearTo);
   const [qaMin, setQaMin] = useState(initialQaMin);
@@ -147,7 +150,7 @@ const ArticlesList = () => {
   const [status, setStatus] = useState<ArticleListStatus>(initialStatus);
   const [verificationFilters, setVerificationFilters] = useState<Set<VerificationFilterKey>>(initialVerificationFilters);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(
-    initialCountry !== "all" || initialSourceDatabase !== "all" || initialYearFrom !== "all" || initialYearTo !== "all" || initialQaMin !== "all" || initialVerificationFilters.size > 0,
+    initialCountry !== "all" || initialSourceDatabase !== "all" || initialQaStatus !== "all" || initialYearFrom !== "all" || initialYearTo !== "all" || initialQaMin !== "all" || initialVerificationFilters.size > 0,
   );
 
   useEffect(() => {
@@ -164,6 +167,7 @@ const ArticlesList = () => {
     params.set("page", String(page));
     if (country !== "all") params.set("country", country);
     if (sourceDatabase !== "all") params.set("database", sourceDatabase);
+    if (qaStatus !== "all") params.set("qa_status", qaStatus);
     if (yearFrom !== "all") params.set("year_from", yearFrom);
     if (yearTo !== "all") params.set("year_to", yearTo);
     if (qaMin !== "all") params.set("qa_min", qaMin);
@@ -176,7 +180,7 @@ const ArticlesList = () => {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [country, page, qaMin, search, searchParams, setSearchParams, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, page, qaMin, qaStatus, search, searchParams, setSearchParams, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const queryParams = useMemo(() => {
     const yearFromNumber = yearFrom === "all" ? null : Number(yearFrom);
@@ -189,6 +193,7 @@ const ArticlesList = () => {
       search,
       country,
       sourceDatabase,
+      qaStatus,
       yearFrom: Number.isFinite(yearFromNumber) ? yearFromNumber : null,
       yearTo: Number.isFinite(yearToNumber) ? yearToNumber : null,
       qaMin: Number.isFinite(qaMinNumber) ? qaMinNumber : null,
@@ -196,7 +201,7 @@ const ArticlesList = () => {
       verificationFilters: Array.from(verificationFilters),
       sort,
     };
-  }, [country, page, qaMin, search, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, page, qaMin, qaStatus, search, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const { data, isLoading } = useQuery({
     queryKey: articleKeys.page(userId, queryParams),
@@ -235,6 +240,7 @@ const ArticlesList = () => {
   const hasAnyArticles = totalCount > 0;
   const advancedFiltersCount = (country !== "all" ? 1 : 0)
     + (sourceDatabase !== "all" ? 1 : 0)
+    + (qaStatus !== "all" ? 1 : 0)
     + (yearFrom !== "all" ? 1 : 0)
     + (yearTo !== "all" ? 1 : 0)
     + (qaMin !== "all" ? 1 : 0);
@@ -387,6 +393,7 @@ const ArticlesList = () => {
   const clearFilters = () => {
     setCountry("all");
     setSourceDatabase("all");
+    setQaStatus("all");
     setYearFrom("all");
     setYearTo("all");
     setQaMin("all");
@@ -537,6 +544,14 @@ const ArticlesList = () => {
                     <SelectContent>
                       <SelectItem value="all">All Databases</SelectItem>
                       {sourceDatabaseOptions.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={qaStatus} onValueChange={(value) => { setQaStatus(value); setPage(1); }}>
+                    <SelectTrigger className="h-10 border-border/70" aria-label="QA status"><SelectValue placeholder="QA status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">QA status: Any</SelectItem>
+                      {QA_STATUSES.map((value) => <SelectItem key={value} value={value}>{QA_STATUS_LABELS[value]}</SelectItem>)}
                     </SelectContent>
                   </Select>
 
@@ -789,6 +804,11 @@ function ArticleRow({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">{metaLine || "No metadata"}</span>
               {article.qa_score != null ? <Badge variant="secondary" className="text-[11px] font-mono">QA: {article.qa_score}/10</Badge> : null}
+              {qaStatusOf(article.qa_consensus_status) !== "not_assessed" ? (
+                <StatusBadge tone={qaStatusTone(qaStatusOf(article.qa_consensus_status))}>
+                  {QA_STATUS_LABELS[qaStatusOf(article.qa_consensus_status)]}
+                </StatusBadge>
+              ) : null}
               <Badge variant="outline" className="text-[11px]">
                 {verificationProgress}/4 checks
               </Badge>

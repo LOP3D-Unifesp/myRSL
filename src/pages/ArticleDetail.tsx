@@ -6,6 +6,7 @@ import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
+import { QA_STATUS_LABELS, qaStatusOf } from "@/lib/qa-status";
 import { useMyReviewerRole, useReviewMemberNames } from "@/hooks/useReviewMemberNames";
 import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
@@ -302,6 +303,7 @@ const ArticleDetail = () => {
                   <div className="rounded-md border border-border/70 bg-card px-3 py-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Final QA score</p>
                     <p className={`text-2xl font-semibold ${qaTone}`}>{qaScore} / 10</p>
+                    <Badge variant="outline" className="mt-1 text-[11px]" data-testid="qa-consensus-status">{QA_STATUS_LABELS[qaStatusOf(article.qa_consensus_status)]}</Badge>
                     {decidedQaItems < QA_QUESTIONS.length ? (
                       <p className="text-xs text-muted-foreground">{decidedQaItems} of {QA_QUESTIONS.length} items decided</p>
                     ) : null}

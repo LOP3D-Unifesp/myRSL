@@ -38,6 +38,7 @@ vi.mock("@tanstack/react-query", () => ({
               verify_qa3: true,
               verify_qa4: false,
               qa_score: 7,
+              qa_consensus_status: "needs_consensus",
             },
           ],
           count: 1,
@@ -94,6 +95,26 @@ describe("ArticlesList", () => {
     );
 
     expect(screen.getByRole("button", { name: /Sync DOI Metadata/i })).toBeInTheDocument();
+  });
+
+  it("shows the QA consensus status of an article", () => {
+    render(
+      <MemoryRouter>
+        <ArticlesList />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Needs consensus")).toBeInTheDocument();
+  });
+
+  it("applies the QA status filter from the address", () => {
+    render(
+      <MemoryRouter initialEntries={["/articles?qa_status=needs_consensus"]}>
+        <ArticlesList />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: "Toggle advanced filters" })).toHaveTextContent("1");
   });
 
   it("renders Import Excel action in header", () => {

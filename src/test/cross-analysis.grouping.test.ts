@@ -15,6 +15,7 @@ function makeArticle(overrides: Partial<Article>): Article {
     study_id: null,
     source_database: null,
     review_id: "review-1",
+    qa_consensus_status: "not_assessed",
     author: null,
     first_author: null,
     last_author: null,

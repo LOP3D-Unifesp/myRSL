@@ -21,6 +21,7 @@ export type ArticleListItem = Pick<
   | "first_author"
   | "study_id"
   | "source_database"
+  | "qa_consensus_status"
   | "country"
   | "prosthesis_name"
   | "year"
@@ -49,6 +50,7 @@ export type FetchArticlesPageParams = {
   search: string;
   country?: string;
   sourceDatabase?: string;
+  qaStatus?: string;
   yearFrom?: number | null;
   yearTo?: number | null;
   qaMin?: number | null;
@@ -278,7 +280,7 @@ export async function fetchArticleSummaries() {
   const { data, error } = await inActiveReview(
     supabase
       .from("articles")
-      .select("id,title,author,first_author,study_id,source_database,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4"),
+      .select("id,title,author,first_author,study_id,source_database,qa_consensus_status,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4"),
   ).order("created_at", { ascending: false });
   if (error) throw error;
   return data as ArticleListItem[];
@@ -307,6 +309,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     search,
     country,
     sourceDatabase,
+    qaStatus,
     yearFrom,
     yearTo,
     qaMin,
@@ -321,7 +324,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
   let query = inActiveReview(
     supabase
       .from("articles")
-      .select("id,title,author,first_author,study_id,source_database,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" }),
+      .select("id,title,author,first_author,study_id,source_database,qa_consensus_status,country,prosthesis_name,year,is_draft,created_at,updated_at,verify_peer1,verify_peer2,verify_qa3,verify_qa4,qa_score", { count: "exact" }),
   ).range(from, to);
 
   const term = search.trim();
@@ -338,6 +341,10 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
 
   if (sourceDatabase && sourceDatabase !== "all") {
     query = query.eq("source_database", sourceDatabase);
+  }
+
+  if (qaStatus && qaStatus !== "all") {
+    query = query.eq("qa_consensus_status", qaStatus);
   }
 
   if (yearFrom != null) {

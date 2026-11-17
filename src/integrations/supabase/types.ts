@@ -123,6 +123,7 @@ export type Database = {
           qa_q7: string | null
           qa_q8: string | null
           qa_q9: string | null
+          qa_consensus_status: string
           qa_score: number | null
           quantitative_results: string | null
           research_questions: string[] | null
@@ -202,6 +203,7 @@ export type Database = {
           qa_q7?: string | null
           qa_q8?: string | null
           qa_q9?: string | null
+          qa_consensus_status?: string
           qa_score?: number | null
           quantitative_results?: string | null
           research_questions?: string[] | null
@@ -281,6 +283,7 @@ export type Database = {
           qa_q7?: string | null
           qa_q8?: string | null
           qa_q9?: string | null
+          qa_consensus_status?: string
           qa_score?: number | null
           quantitative_results?: string | null
           research_questions?: string[] | null
