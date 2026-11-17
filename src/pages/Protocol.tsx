@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plus, Save, Trash2 } from "lucide-react";
+import { Check, ClipboardList, Save } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/layout/PageHeader";
+import CriteriaList from "@/components/protocol/CriteriaList";
+import DatabasesTab from "@/components/protocol/DatabasesTab";
+import ProtocolSummary from "@/components/protocol/ProtocolSummary";
+import ScopeTab, { type ScopeValues } from "@/components/protocol/ScopeTab";
 import { useAuthUserId } from "@/contexts/auth-user-id";
 import { protocolKeys } from "@/lib/article-query-keys";
 import {
@@ -16,40 +19,25 @@ import {
   fetchProtocolDatabases,
   saveProtocol,
   saveProtocolDatabase,
-  type ProtocolDatabase,
+  type ProtocolDatabaseWriteInput,
 } from "@/lib/protocol";
 
-type ProtocolForm = {
-  research_questions: string;
-  period_from: string;
-  period_to: string;
-  languages: string;
-  extraction_notes: string;
-  inclusion_criteria: string;
-  exclusion_criteria: string;
+type ProtocolForm = ScopeValues & {
+  inclusion_criteria: string[];
+  exclusion_criteria: string[];
 };
 
-type DatabaseForm = {
-  name: string;
-  search_string: string;
-  searched_at: string;
-  results_count: string;
-};
-
-const EMPTY_PROTOCOL_FORM: ProtocolForm = {
+const EMPTY_FORM: ProtocolForm = {
   research_questions: "",
   period_from: "",
   period_to: "",
-  languages: "",
+  languages: [],
   extraction_notes: "",
-  inclusion_criteria: "",
-  exclusion_criteria: "",
+  inclusion_criteria: [],
+  exclusion_criteria: [],
 };
 
-const EMPTY_DATABASE_FORM: DatabaseForm = { name: "", search_string: "", searched_at: "", results_count: "" };
-
-const splitLines = (value: string) => value.split("\n").map((line) => line.trim()).filter(Boolean);
-const splitCommas = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+const cleanList = (items: string[]) => items.map((item) => item.trim()).filter(Boolean);
 const toNumberOrNull = (value: string) => (value.trim() ? Number(value.trim()) : null);
 
 function errorMessage(error: unknown, fallback: string) {
@@ -63,116 +51,86 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function DatabaseCard({ database, onSave, onDelete }: {
-  database: ProtocolDatabase;
-  onSave: (id: string, form: DatabaseForm) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const [form, setForm] = useState<DatabaseForm>({
-    name: database.name,
-    search_string: database.search_string ?? "",
-    searched_at: database.searched_at ?? "",
-    results_count: database.results_count != null ? String(database.results_count) : "",
+function serialize(form: ProtocolForm) {
+  return JSON.stringify({
+    ...form,
+    languages: cleanList(form.languages),
+    inclusion_criteria: cleanList(form.inclusion_criteria),
+    exclusion_criteria: cleanList(form.exclusion_criteria),
   });
-  const [busy, setBusy] = useState(false);
-
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="space-y-3 rounded-md border border-border/60 p-3">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label>Database</Label>
-          <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-        </div>
-        <div className="space-y-2">
-          <Label>Search date</Label>
-          <Input type="date" value={form.searched_at} onChange={(e) => setForm((f) => ({ ...f, searched_at: e.target.value }))} />
-        </div>
-        <div className="space-y-2">
-          <Label>Results</Label>
-          <Input type="number" min={0} value={form.results_count} onChange={(e) => setForm((f) => ({ ...f, results_count: e.target.value }))} />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label>Search string</Label>
-        <Textarea rows={3} value={form.search_string} onChange={(e) => setForm((f) => ({ ...f, search_string: e.target.value }))} />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => run(() => onDelete(database.id))}>
-          <Trash2 className="mr-1 h-4 w-4" />Remove
-        </Button>
-        <Button size="sm" disabled={busy} onClick={() => run(() => onSave(database.id, form))}>
-          <Save className="mr-1 h-4 w-4" />Save
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 const Protocol = () => {
   const userId = useAuthUserId();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<ProtocolForm>(EMPTY_PROTOCOL_FORM);
-  const [newDatabase, setNewDatabase] = useState<DatabaseForm>(EMPTY_DATABASE_FORM);
+  const [form, setForm] = useState<ProtocolForm>(EMPTY_FORM);
+  const [baseline, setBaseline] = useState(() => serialize(EMPTY_FORM));
 
   const { data: protocol } = useQuery({ queryKey: protocolKeys.protocol(userId), queryFn: fetchProtocol, enabled: Boolean(userId) });
   const { data: databases = [] } = useQuery({ queryKey: protocolKeys.databases(userId), queryFn: fetchProtocolDatabases, enabled: Boolean(userId) });
 
   useEffect(() => {
     if (!protocol) return;
-    setForm({
+    const loaded: ProtocolForm = {
       research_questions: protocol.research_questions ?? "",
       period_from: protocol.period_from != null ? String(protocol.period_from) : "",
       period_to: protocol.period_to != null ? String(protocol.period_to) : "",
-      languages: (protocol.languages ?? []).join(", "),
+      languages: protocol.languages ?? [],
       extraction_notes: protocol.extraction_notes ?? "",
-      inclusion_criteria: (protocol.inclusion_criteria ?? []).join("\n"),
-      exclusion_criteria: (protocol.exclusion_criteria ?? []).join("\n"),
-    });
+      inclusion_criteria: protocol.inclusion_criteria ?? [],
+      exclusion_criteria: protocol.exclusion_criteria ?? [],
+    };
+    setForm(loaded);
+    setBaseline(serialize(loaded));
   }, [protocol]);
 
-  const refreshDatabases = () => queryClient.invalidateQueries({ queryKey: protocolKeys.databases(userId) });
+  const dirty = serialize(form) !== baseline;
 
-  const saveProtocolMutation = useMutation({
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const periodError = useMemo(() => {
+    const from = toNumberOrNull(form.period_from);
+    const to = toNumberOrNull(form.period_to);
+    return from != null && to != null && from > to ? "Period start must not be after the end." : null;
+  }, [form.period_from, form.period_to]);
+
+  const saveMutation = useMutation({
     mutationFn: () =>
       saveProtocol({
         research_questions: form.research_questions.trim() || null,
         period_from: toNumberOrNull(form.period_from),
         period_to: toNumberOrNull(form.period_to),
-        languages: splitCommas(form.languages),
+        languages: cleanList(form.languages),
         extraction_notes: form.extraction_notes.trim() || null,
-        inclusion_criteria: splitLines(form.inclusion_criteria),
-        exclusion_criteria: splitLines(form.exclusion_criteria),
+        inclusion_criteria: cleanList(form.inclusion_criteria),
+        exclusion_criteria: cleanList(form.exclusion_criteria),
       }),
     onSuccess: () => {
+      setBaseline(serialize(form));
       queryClient.invalidateQueries({ queryKey: protocolKeys.protocol(userId) });
       toast.success("Protocol saved.");
     },
     onError: (error) => toast.error(errorMessage(error, "Failed to save protocol.")),
   });
 
-  const toDatabaseInput = (value: DatabaseForm) => ({
-    name: value.name,
-    search_string: value.search_string.trim() || null,
-    searched_at: value.searched_at || null,
-    results_count: toNumberOrNull(value.results_count),
-  });
+  const refreshDatabases = () => queryClient.invalidateQueries({ queryKey: protocolKeys.databases(userId) });
 
-  const handleSaveDatabase = async (id: string, value: DatabaseForm) => {
+  const handleSaveDatabase = async (input: ProtocolDatabaseWriteInput, id?: string) => {
     try {
-      await saveProtocolDatabase(toDatabaseInput(value), id);
+      await saveProtocolDatabase(input, id);
       await refreshDatabases();
       toast.success("Database saved.");
     } catch (error) {
       toast.error(errorMessage(error, "Failed to save database."));
+      throw error;
     }
   };
 
@@ -180,22 +138,13 @@ const Protocol = () => {
     try {
       await deleteProtocolDatabase(id);
       await refreshDatabases();
-      toast.success("Database removed. Articles keep their saved database name.");
+      toast.success("Database removed.");
     } catch (error) {
       toast.error(errorMessage(error, "Failed to remove database."));
     }
   };
 
-  const handleAddDatabase = async () => {
-    try {
-      await saveProtocolDatabase(toDatabaseInput(newDatabase));
-      setNewDatabase(EMPTY_DATABASE_FORM);
-      await refreshDatabases();
-      toast.success("Database added.");
-    } catch (error) {
-      toast.error(errorMessage(error, "Failed to add database."));
-    }
-  };
+  const totalResults = databases.reduce((sum, database) => sum + (database.results_count ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -204,74 +153,55 @@ const Protocol = () => {
         subtitle="Databases, search strings, and eligibility criteria for this review."
         titleIcon={<ClipboardList className="h-6 w-6" />}
         actions={
-          <Button onClick={() => saveProtocolMutation.mutate()} disabled={saveProtocolMutation.isPending}>
-            <Save className="mr-2 h-4 w-4" />{saveProtocolMutation.isPending ? "Saving..." : "Save Protocol"}
-          </Button>
+          <div className="flex items-center gap-3">
+            {dirty ? <Badge variant="secondary">Unsaved changes</Badge> : null}
+            <Button onClick={() => saveMutation.mutate()} disabled={!dirty || Boolean(periodError) || saveMutation.isPending}>
+              {dirty || saveMutation.isPending ? <Save className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+              {saveMutation.isPending ? "Saving..." : dirty ? "Save changes" : "Saved"}
+            </Button>
+          </div>
         }
       />
 
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Databases and search strings</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          {databases.map((database) => (
-            <DatabaseCard key={`${database.id}-${database.updated_at}`} database={database} onSave={handleSaveDatabase} onDelete={handleDeleteDatabase} />
-          ))}
-          <div className="space-y-3 rounded-md border border-dashed border-border/70 p-3">
-            <p className="text-sm font-medium">Add database</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Input placeholder="e.g. Scopus" value={newDatabase.name} onChange={(e) => setNewDatabase((f) => ({ ...f, name: e.target.value }))} />
-              <Input type="date" value={newDatabase.searched_at} onChange={(e) => setNewDatabase((f) => ({ ...f, searched_at: e.target.value }))} />
-              <Input type="number" min={0} placeholder="Results" value={newDatabase.results_count} onChange={(e) => setNewDatabase((f) => ({ ...f, results_count: e.target.value }))} />
-            </div>
-            <Textarea rows={3} placeholder="Search string" value={newDatabase.search_string} onChange={(e) => setNewDatabase((f) => ({ ...f, search_string: e.target.value }))} />
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleAddDatabase} disabled={!newDatabase.name.trim()}>
-                <Plus className="mr-1 h-4 w-4" />Add
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ProtocolSummary
+        databases={databases.length}
+        totalResults={totalResults}
+        inclusion={cleanList(form.inclusion_criteria).length}
+        exclusion={cleanList(form.exclusion_criteria).length}
+      />
 
       <Card>
-        <CardHeader><CardTitle className="text-lg">Eligibility criteria</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Inclusion criteria (one per line)</Label>
-            <Textarea rows={8} value={form.inclusion_criteria} onChange={(e) => setForm((f) => ({ ...f, inclusion_criteria: e.target.value }))} />
-          </div>
-          <div className="space-y-2">
-            <Label>Exclusion criteria (one per line)</Label>
-            <Textarea rows={8} value={form.exclusion_criteria} onChange={(e) => setForm((f) => ({ ...f, exclusion_criteria: e.target.value }))} />
-          </div>
-        </CardContent>
-      </Card>
+        <CardContent className="pt-6">
+          <Tabs defaultValue="databases" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="databases">Databases</TabsTrigger>
+              <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
+              <TabsTrigger value="scope">Scope</TabsTrigger>
+            </TabsList>
 
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Scope</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Research questions</Label>
-            <Textarea rows={4} value={form.research_questions} onChange={(e) => setForm((f) => ({ ...f, research_questions: e.target.value }))} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Period from (year)</Label>
-              <Input type="number" value={form.period_from} onChange={(e) => setForm((f) => ({ ...f, period_from: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Period to (year)</Label>
-              <Input type="number" value={form.period_to} onChange={(e) => setForm((f) => ({ ...f, period_to: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Languages (comma separated)</Label>
-              <Input value={form.languages} onChange={(e) => setForm((f) => ({ ...f, languages: e.target.value }))} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Data extraction notes</Label>
-            <Textarea rows={4} value={form.extraction_notes} onChange={(e) => setForm((f) => ({ ...f, extraction_notes: e.target.value }))} />
-          </div>
+            <TabsContent value="databases">
+              <DatabasesTab databases={databases} onSave={handleSaveDatabase} onDelete={handleDeleteDatabase} />
+            </TabsContent>
+
+            <TabsContent value="eligibility" className="grid gap-8 md:grid-cols-2">
+              <CriteriaList
+                title="Inclusion criteria"
+                description="A study must meet all of these to be included."
+                items={form.inclusion_criteria}
+                onChange={(items) => setForm((f) => ({ ...f, inclusion_criteria: items }))}
+              />
+              <CriteriaList
+                title="Exclusion criteria"
+                description="A study meeting any of these is excluded."
+                items={form.exclusion_criteria}
+                onChange={(items) => setForm((f) => ({ ...f, exclusion_criteria: items }))}
+              />
+            </TabsContent>
+
+            <TabsContent value="scope">
+              <ScopeTab values={form} periodError={periodError} onChange={(values) => setForm((f) => ({ ...f, ...values }))} />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
