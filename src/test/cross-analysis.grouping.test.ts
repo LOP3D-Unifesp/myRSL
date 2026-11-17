@@ -14,6 +14,7 @@ function makeArticle(overrides: Partial<Article>): Article {
     updated_at: "2026-01-01T00:00:00.000Z",
     study_id: null,
     source_database: null,
+    review_id: "review-1",
     author: null,
     first_author: null,
     last_author: null,

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { inActiveReview } from "@/lib/articles";
+import { requireActiveReviewId } from "@/lib/active-review";
 
 export type Protocol = Database["public"]["Tables"]["protocols"]["Row"];
 export type ProtocolDatabase = Database["public"]["Tables"]["protocol_databases"]["Row"];
@@ -35,7 +37,7 @@ async function requireUserId(): Promise<string> {
 }
 
 export async function fetchProtocol(): Promise<Protocol | null> {
-  const { data, error } = await supabase.from("protocols").select("*").maybeSingle();
+  const { data, error } = await inActiveReview(supabase.from("protocols").select("*")).maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -45,7 +47,7 @@ export async function saveProtocol(input: ProtocolWriteInput): Promise<Protocol>
   const sanitized = protocolWriteSchema.parse(input);
   const { data, error } = await supabase
     .from("protocols")
-    .upsert({ ...sanitized, user_id: userId }, { onConflict: "user_id" })
+    .upsert({ ...sanitized, user_id: userId, review_id: requireActiveReviewId() }, { onConflict: "review_id" })
     .select()
     .single();
   if (error) throw error;
@@ -53,7 +55,7 @@ export async function saveProtocol(input: ProtocolWriteInput): Promise<Protocol>
 }
 
 export async function fetchProtocolDatabases(): Promise<ProtocolDatabase[]> {
-  const { data, error } = await supabase.from("protocol_databases").select("*").order("name");
+  const { data, error } = await inActiveReview(supabase.from("protocol_databases").select("*")).order("name");
   if (error) throw error;
   return data ?? [];
 }
@@ -68,7 +70,7 @@ export async function saveProtocolDatabase(input: ProtocolDatabaseWriteInput, id
   const userId = await requireUserId();
   const { data, error } = await supabase
     .from("protocol_databases")
-    .insert({ ...sanitized, name: sanitized.name, user_id: userId })
+    .insert({ ...sanitized, name: sanitized.name, user_id: userId, review_id: requireActiveReviewId() })
     .select()
     .single();
   if (error) throw error;

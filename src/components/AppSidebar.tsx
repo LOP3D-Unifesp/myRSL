@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import ReviewSwitcher from "@/components/ReviewSwitcher";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -46,6 +47,8 @@ const AppSidebar = () => {
           <X className="h-5 w-5" />
         </button>
       </div>
+
+      <ReviewSwitcher />
 
       <nav className="flex-1 space-y-1.5 px-2.5 py-3.5">
         {navItems.map(({ to, icon: Icon, label }) => {

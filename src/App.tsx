@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthUserIdProvider } from "@/contexts/auth-user-id";
+import { CurrentReviewProvider } from "@/contexts/current-review";
 import AuthQuerySync from "@/components/AuthQuerySync";
 import Auth from "./pages/Auth";
 import AppLayout from "./components/AppLayout";
@@ -44,7 +45,9 @@ function ProtectedRoutes() {
 
   return (
     <AuthUserIdProvider userId={session.user.id}>
-      <AppLayout />
+      <CurrentReviewProvider>
+        <AppLayout />
+      </CurrentReviewProvider>
     </AuthUserIdProvider>
   );
 }

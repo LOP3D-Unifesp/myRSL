@@ -18,6 +18,7 @@ const articleFixture: Article = {
   updated_at: "2026-01-01T00:00:00.000Z",
   study_id: null,
   source_database: null,
+  review_id: "review-1",
   author: "Alice",
   first_author: "Alice",
   last_author: null,

@@ -34,6 +34,7 @@ export type Database = {
           growth_accommodation: string | null
           has_pediatric_participants: string | null
           id: string
+          review_id: string
           is_draft: boolean
           last_author: string | null
           manufacturing_method: string | null
@@ -104,6 +105,7 @@ export type Database = {
           growth_accommodation?: string | null
           has_pediatric_participants?: string | null
           id?: string
+          review_id?: string
           is_draft?: boolean
           last_author?: string | null
           manufacturing_method?: string | null
@@ -174,6 +176,7 @@ export type Database = {
           growth_accommodation?: string | null
           has_pediatric_participants?: string | null
           id?: string
+          review_id?: string
           is_draft?: boolean
           last_author?: string | null
           manufacturing_method?: string | null
@@ -231,6 +234,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          review_id: string
           name: string
           results_count: number | null
           search_string: string | null
@@ -241,6 +245,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          review_id?: string
           name: string
           results_count?: number | null
           search_string?: string | null
@@ -251,6 +256,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          review_id?: string
           name?: string
           results_count?: number | null
           search_string?: string | null
@@ -266,6 +272,7 @@ export type Database = {
           exclusion_criteria: string[] | null
           extraction_notes: string | null
           id: string
+          review_id: string
           inclusion_criteria: string[] | null
           languages: string[] | null
           period_from: number | null
@@ -279,6 +286,7 @@ export type Database = {
           exclusion_criteria?: string[] | null
           extraction_notes?: string | null
           id?: string
+          review_id?: string
           inclusion_criteria?: string[] | null
           languages?: string[] | null
           period_from?: number | null
@@ -292,6 +300,7 @@ export type Database = {
           exclusion_criteria?: string[] | null
           extraction_notes?: string | null
           id?: string
+          review_id?: string
           inclusion_criteria?: string[] | null
           languages?: string[] | null
           period_from?: number | null
@@ -299,6 +308,48 @@ export type Database = {
           research_questions?: string[] | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      review_members: {
+        Row: {
+          created_at: string
+          review_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          review_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          review_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -328,7 +379,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_review_member: {
+        Args: { p_email: string; p_review_id: string }
+        Returns: undefined
+      }
+      create_review: {
+        Args: { p_name: string }
+        Returns: string
+      }
+      list_review_members: {
+        Args: { p_review_id: string }
+        Returns: {
+          email: string
+          full_name: string | null
+          role: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

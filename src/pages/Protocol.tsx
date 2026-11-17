@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/layout/PageHeader";
 import CriteriaList from "@/components/protocol/CriteriaList";
+import MembersTab from "@/components/protocol/MembersTab";
 import DatabasesTab from "@/components/protocol/DatabasesTab";
 import ProtocolSummary from "@/components/protocol/ProtocolSummary";
 import ScopeTab, { type ScopeValues } from "@/components/protocol/ScopeTab";
@@ -178,6 +179,7 @@ const Protocol = () => {
               <TabsTrigger value="databases">Databases</TabsTrigger>
               <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
               <TabsTrigger value="scope">Scope</TabsTrigger>
+              <TabsTrigger value="team">Team</TabsTrigger>
             </TabsList>
 
             <TabsContent value="databases">
@@ -201,6 +203,10 @@ const Protocol = () => {
 
             <TabsContent value="scope">
               <ScopeTab values={form} periodError={periodError} onChange={(values) => setForm((f) => ({ ...f, ...values }))} />
+            </TabsContent>
+
+            <TabsContent value="team">
+              <MembersTab />
             </TabsContent>
           </Tabs>
         </CardContent>

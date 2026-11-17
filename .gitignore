@@ -29,3 +29,8 @@ supabase/.temp
 
 # local PDFs for one-off bulk upload
 pdfs-import/
+
+# review exports and protocol documents (contain study data)
+docs/*.xls
+docs/*.xlsx
+docs/*.docx

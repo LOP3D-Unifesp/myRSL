@@ -18,6 +18,16 @@ vi.mock("@/lib/protocol", () => ({
   deleteProtocolDatabase: mocks.deleteDatabaseMock,
 }));
 
+vi.mock("@/contexts/current-review", () => ({
+  useCurrentReview: () => ({ review: { id: "review-1", name: "Test review", role: "owner" }, reviews: [], selectReview: vi.fn() }),
+}));
+
+vi.mock("@/lib/reviews", () => ({
+  fetchReviewMembers: vi.fn().mockResolvedValue([]),
+  addReviewMember: vi.fn(),
+  removeReviewMember: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import Protocol from "@/pages/Protocol";
