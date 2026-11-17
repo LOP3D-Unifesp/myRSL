@@ -110,6 +110,7 @@ const ArticleDetail = () => {
     setExtracting(true);
     try {
       const response = await fetch(pdfAccessUrl);
+      if (!response.ok) throw new Error("Could not download the PDF file.");
       const blob = await response.blob();
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -121,12 +122,12 @@ const ArticleDetail = () => {
         body: { pdfBase64: base64, fileName: "article.pdf", fileType: "application/pdf" },
       });
       if (error) throw new Error(error.message);
-      if (data?.extracted) {
-        const sanitized = sanitizeExtractedArticle(data.extracted);
-        await updateArticle(article!.id, sanitized);
-        invalidate();
-        toast.success("Fields updated from PDF. Please review.");
-      }
+      if (!data?.extracted) throw new Error(data?.error ?? "No data could be extracted from the PDF.");
+      const sanitized = sanitizeExtractedArticle(data.extracted);
+      if (Object.keys(sanitized).length === 0) throw new Error("No valid fields were extracted from the PDF.");
+      await updateArticle(article!.id, sanitized);
+      invalidate();
+      toast.success("Fields updated from PDF. Please review.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to extract PDF data.");
     } finally {

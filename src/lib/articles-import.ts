@@ -58,7 +58,7 @@ export type ImportPreview = {
   duplicateCandidates: DuplicateCandidate[];
 };
 
-export type ImportExecutionMode = "skip_duplicates" | "import_all_duplicates";
+export type ImportExecutionMode = "skip_duplicates" | "import_all_duplicates" | "update_existing";
 
 export type ImportExecutionFailure = {
   rowNumber: number;
@@ -68,6 +68,7 @@ export type ImportExecutionFailure = {
 export type ImportResult = {
   attempted: number;
   imported: number;
+  updated: number;
   skippedDuplicates: number;
   invalid: number;
   failed: number;
@@ -338,6 +339,25 @@ export async function previewArticlesExcelImport(file: File): Promise<ImportPrev
   };
 }
 
+function isEmptyImportValue(value: unknown): boolean {
+  return value == null || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+// Maps normalized DOI / study_id of the current user's articles to their row id.
+async function fetchExistingIdsByIdentifier(userId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabase.from("articles").select("id,doi,study_id").eq("user_id", userId);
+  if (error) throw error;
+
+  const ids = new Map<string, string>();
+  for (const row of data ?? []) {
+    const doi = row.doi ? normalizeDoi(row.doi) : "";
+    if (doi && !ids.has(`doi:${doi}`)) ids.set(`doi:${doi}`, row.id);
+    const studyId = row.study_id ? row.study_id.trim().toLowerCase() : "";
+    if (studyId && !ids.has(`study_id:${studyId}`)) ids.set(`study_id:${studyId}`, row.id);
+  }
+  return ids;
+}
+
 export async function executeArticlesExcelImport(preview: ImportPreview, mode: ImportExecutionMode = "skip_duplicates"): Promise<ImportResult> {
   const rowsToInsert = mode === "import_all_duplicates"
     ? [...preview.validRows, ...preview.possibleDuplicateRows, ...preview.duplicateInFileRows]
@@ -350,7 +370,28 @@ export async function executeArticlesExcelImport(preview: ImportPreview, mode: I
   if (!user) throw new Error("Not authenticated");
 
   let imported = 0;
+  let updated = 0;
   const failures: ImportExecutionFailure[] = [];
+
+  if (mode === "update_existing") {
+    // Existing articles (matched by DOI, else study_id) get the non-empty file values; empty cells keep the current value.
+    const existingIds = await fetchExistingIdsByIdentifier(user.id);
+    for (const row of preview.possibleDuplicateRows) {
+      const id = existingIds.get(`${row.duplicateField}:${row.duplicateValue}`);
+      if (!id) {
+        rowsToInsert.push(row);
+        continue;
+      }
+      const changes = Object.fromEntries(Object.entries(row.payload).filter(([, value]) => !isEmptyImportValue(value)));
+      const { error } = await supabase.from("articles").update(changes).eq("id", id).eq("user_id", user.id);
+      if (error) {
+        failures.push({ rowNumber: row.rowNumber, message: error.message });
+        continue;
+      }
+      updated += 1;
+    }
+    rowsToInsert.sort((a, b) => a.rowNumber - b.rowNumber);
+  }
 
   for (const row of rowsToInsert) {
     const { error } = await supabase.from("articles").insert({
@@ -369,11 +410,14 @@ export async function executeArticlesExcelImport(preview: ImportPreview, mode: I
 
   const skippedDuplicates = mode === "skip_duplicates"
     ? preview.possibleDuplicateRows.length + preview.duplicateInFileRows.length
-    : 0;
+    : mode === "update_existing"
+      ? preview.duplicateInFileRows.length
+      : 0;
 
   return {
-    attempted: rowsToInsert.length,
+    attempted: rowsToInsert.length + updated,
     imported,
+    updated,
     skippedDuplicates,
     invalid: preview.invalidRows.length,
     failed: failures.length,

@@ -17,6 +17,8 @@ const requestSchema = z.object({
   fileName: z.string().min(1).max(256).optional().default("article.pdf"),
 });
 
+const numOrNull = (v: unknown) => (v === null || v === undefined || v === "" ? v : Number(v));
+
 const extractedSchema = z
   .object({
     doi: z.string().nullable().optional(),
@@ -28,12 +30,15 @@ const extractedSchema = z
     last_author: z.string().nullable().optional(),
     universities: z.string().nullable().optional(),
     publication_place: z.string().nullable().optional(),
-    year: z.number().int().nullable().optional(),
+    year: z.preprocess(numOrNull, z.number().int().nullable().optional()),
     country: z.string().nullable().optional(),
     publication_type: z.string().nullable().optional(),
     study_design: z.string().nullable().optional(),
-    has_pediatric_participants: z.string().nullable().optional(),
-    sample_size: z.number().int().nullable().optional(),
+    has_pediatric_participants: z.preprocess(
+      (v) => (typeof v === "boolean" ? (v ? "Yes" : "No") : v),
+      z.string().nullable().optional(),
+    ),
+    sample_size: z.preprocess(numOrNull, z.number().int().nullable().optional()),
     age_range: z.string().nullable().optional(),
     amputation_cause: z.array(z.string()).optional(),
     amputation_level: z.array(z.string()).optional(),

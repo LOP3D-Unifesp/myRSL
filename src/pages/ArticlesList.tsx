@@ -96,12 +96,14 @@ function parseYearParam(value: string | null): string {
 
 function summarizeImportResult(result: {
   imported: number;
+  updated?: number;
   skippedDuplicates: number;
   invalid: number;
   failed: number;
 }): string {
   const parts = [
     `${result.imported} imported`,
+    ...(result.updated ? [`${result.updated} updated`] : []),
     `${result.skippedDuplicates} skipped as duplicates`,
     `${result.invalid} invalid`,
     `${result.failed} failed`,
@@ -686,6 +688,13 @@ const ArticlesList = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={executingImport}>
               Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => runExcelImport("update_existing")}
+              disabled={!importPreview || executingImport}
+            >
+              {executingImport ? "Importing..." : "Update Existing + Add New"}
             </Button>
             <Button
               variant="secondary"
