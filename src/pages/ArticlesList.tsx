@@ -51,7 +51,6 @@ const STATUS_FILTERS: Array<{ key: ArticleListStatus; label: string }> = [
   { key: "verified", label: "Verified" },
   { key: "pending", label: "Pending" },
   { key: "draft", label: "Draft" },
-  { key: "needs_consensus", label: "Needs consensus" },
 ];
 const qaOptions = ["all", "0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10"];
 
@@ -80,7 +79,7 @@ function parseSort(value: string | null): ArticleListSort {
 }
 
 function parseStatus(value: string | null): ArticleListStatus {
-  if (value === "verified" || value === "pending" || value === "draft" || value === "needs_consensus") return value;
+  if (value === "verified" || value === "pending" || value === "draft") return value;
   return "all";
 }
 
@@ -147,6 +146,7 @@ const ArticlesList = () => {
   const [qaMin, setQaMin] = useState(initialQaMin);
   const [sort, setSort] = useState<ArticleListSort>(initialSort);
   const [status, setStatus] = useState<ArticleListStatus>(initialStatus);
+  const [needsConsensus, setNeedsConsensus] = useState(searchParams.get("needs_consensus") === "1");
   const [verificationFilters, setVerificationFilters] = useState<Set<VerificationFilterKey>>(initialVerificationFilters);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(
     initialCountry !== "all" || initialSourceDatabase !== "all" || initialYearFrom !== "all" || initialYearTo !== "all" || initialQaMin !== "all" || initialVerificationFilters.size > 0,
@@ -173,12 +173,13 @@ const ArticlesList = () => {
 
     const serializedFilters = serializeVerificationFilters(verificationFilters);
     if (serializedFilters) params.set("filters", serializedFilters);
+    if (needsConsensus) params.set("needs_consensus", "1");
     if (sort !== "recent_desc") params.set("sort", sort);
 
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [country, page, qaMin, search, searchParams, setSearchParams, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, needsConsensus, page, qaMin, search, searchParams, setSearchParams, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const queryParams = useMemo(() => {
     const yearFromNumber = yearFrom === "all" ? null : Number(yearFrom);
@@ -195,10 +196,11 @@ const ArticlesList = () => {
       yearTo: Number.isFinite(yearToNumber) ? yearToNumber : null,
       qaMin: Number.isFinite(qaMinNumber) ? qaMinNumber : null,
       status,
+      needsConsensus,
       verificationFilters: Array.from(verificationFilters),
       sort,
     };
-  }, [country, page, qaMin, search, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
+  }, [country, needsConsensus, page, qaMin, search, sort, sourceDatabase, status, verificationFilters, yearFrom, yearTo]);
 
   const { data, isLoading } = useQuery({
     queryKey: articleKeys.page(userId, queryParams),
@@ -394,6 +396,7 @@ const ArticlesList = () => {
     setQaMin("all");
     setStatus("all");
     setVerificationFilters(new Set());
+    setNeedsConsensus(false);
     setSort("recent_desc");
     setPage(1);
   };
@@ -520,6 +523,16 @@ const ArticlesList = () => {
                     {label}
                   </Button>
                 ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={needsConsensus ? "default" : "outline"}
+                  className={needsConsensus ? "h-8" : "h-8 border-border/70"}
+                  aria-pressed={needsConsensus}
+                  onClick={() => { setNeedsConsensus((value) => !value); setPage(1); }}
+                >
+                  Needs consensus
+                </Button>
               </div>
             </div>
 

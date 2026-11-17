@@ -41,7 +41,7 @@ export type VerificationListItem = Pick<
 >;
 
 export type ArticleListSort = "recent_desc" | "year_desc" | "year_asc" | "qa_desc" | "qa_asc";
-export type ArticleListStatus = "all" | "verified" | "pending" | "draft" | "needs_consensus";
+export type ArticleListStatus = "all" | "verified" | "pending" | "draft";
 export type ArticleListVerificationFilter = VerificationKey;
 
 export type FetchArticlesPageParams = {
@@ -55,6 +55,8 @@ export type FetchArticlesPageParams = {
   qaMin?: number | null;
   qaMax?: number | null;
   status?: ArticleListStatus;
+  // Both reviewers finished their QA but the final QA still has undecided items.
+  needsConsensus?: boolean;
   verificationFilters?: ArticleListVerificationFilter[];
   sort?: ArticleListSort;
 };
@@ -313,6 +315,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     qaMin,
     qaMax,
     status = "all",
+    needsConsensus = false,
     verificationFilters = [],
     sort = "recent_desc",
   } = params;
@@ -368,8 +371,9 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
     query = query
       .eq("is_draft", false)
       .or(VERIFICATION_KEYS.map((key) => `${key}.is.false`).join(","));
-  } else if (status === "needs_consensus") {
-    // Both reviewers finished their QA but the final QA still has undecided items.
+  }
+
+  if (needsConsensus) {
     query = query.eq("qa_consensus_status", "needs_consensus");
   }
 

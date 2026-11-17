@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
@@ -108,16 +108,20 @@ describe("ArticlesList", () => {
     expect(screen.getAllByText("Needs consensus")).toHaveLength(2);
   });
 
-  it("has a Needs consensus status button that is pressed from the address", () => {
+  it("has a Needs consensus button in the Verification row, pressed from the address", () => {
     render(
-      <MemoryRouter initialEntries={["/articles?status=needs_consensus"]}>
+      <MemoryRouter initialEntries={["/articles?needs_consensus=1"]}>
         <ArticlesList />
       </MemoryRouter>,
     );
 
-    const button = screen.getByRole("button", { name: "Needs consensus" });
+    const row = screen.getByText("Verification").parentElement as HTMLElement;
+    const button = within(row).getByRole("button", { name: "Needs consensus" });
     expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "false");
+    expect(within(row).getByRole("button", { name: "Peer 1" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
   it("renders Import Excel action in header", () => {
