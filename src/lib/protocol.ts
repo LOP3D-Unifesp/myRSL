@@ -9,7 +9,7 @@ const optionalText = z.string().max(10000).nullable().optional();
 const stringList = z.array(z.string().trim().min(1).max(1000)).max(100).nullable().optional();
 
 export const protocolWriteSchema = z.object({
-  research_questions: optionalText,
+  research_questions: stringList,
   period_from: z.number().int().min(1800).max(2100).nullable().optional(),
   period_to: z.number().int().min(1800).max(2100).nullable().optional(),
   languages: z.array(z.string().trim().min(1).max(100)).max(50).nullable().optional(),

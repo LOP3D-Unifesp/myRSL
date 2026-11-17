@@ -28,7 +28,7 @@ type ProtocolForm = ScopeValues & {
 };
 
 const EMPTY_FORM: ProtocolForm = {
-  research_questions: "",
+  research_questions: [],
   period_from: "",
   period_to: "",
   languages: [],
@@ -55,6 +55,7 @@ function serialize(form: ProtocolForm) {
   return JSON.stringify({
     ...form,
     languages: cleanList(form.languages),
+    research_questions: cleanList(form.research_questions),
     inclusion_criteria: cleanList(form.inclusion_criteria),
     exclusion_criteria: cleanList(form.exclusion_criteria),
   });
@@ -72,7 +73,7 @@ const Protocol = () => {
   useEffect(() => {
     if (!protocol) return;
     const loaded: ProtocolForm = {
-      research_questions: protocol.research_questions ?? "",
+      research_questions: protocol.research_questions ?? [],
       period_from: protocol.period_from != null ? String(protocol.period_from) : "",
       period_to: protocol.period_to != null ? String(protocol.period_to) : "",
       languages: protocol.languages ?? [],
@@ -105,7 +106,7 @@ const Protocol = () => {
   const saveMutation = useMutation({
     mutationFn: () =>
       saveProtocol({
-        research_questions: form.research_questions.trim() || null,
+        research_questions: cleanList(form.research_questions),
         period_from: toNumberOrNull(form.period_from),
         period_to: toNumberOrNull(form.period_to),
         languages: cleanList(form.languages),

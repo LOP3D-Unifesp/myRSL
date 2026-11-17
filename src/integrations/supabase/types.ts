@@ -270,7 +270,7 @@ export type Database = {
           languages: string[] | null
           period_from: number | null
           period_to: number | null
-          research_questions: string | null
+          research_questions: string[] | null
           updated_at: string
           user_id: string
         }
@@ -283,7 +283,7 @@ export type Database = {
           languages?: string[] | null
           period_from?: number | null
           period_to?: number | null
-          research_questions?: string | null
+          research_questions?: string[] | null
           updated_at?: string
           user_id: string
         }
@@ -296,7 +296,7 @@ export type Database = {
           languages?: string[] | null
           period_from?: number | null
           period_to?: number | null
-          research_questions?: string | null
+          research_questions?: string[] | null
           updated_at?: string
           user_id?: string
         }

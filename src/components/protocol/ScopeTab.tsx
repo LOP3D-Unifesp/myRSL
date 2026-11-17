@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import CriteriaList from "@/components/protocol/CriteriaList";
 
 export type ScopeValues = {
-  research_questions: string;
+  research_questions: string[];
   period_from: string;
   period_to: string;
   languages: string[];
@@ -33,10 +34,13 @@ const ScopeTab = ({ values, periodError, onChange }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="protocol-rq">Research questions</Label>
-        <Textarea id="protocol-rq" rows={4} value={values.research_questions} onChange={(e) => set("research_questions", e.target.value)} />
-      </div>
+      <CriteriaList
+        title="Research questions"
+        description="The first question is the main one; add the secondary questions below it."
+        items={values.research_questions}
+        mainFirst
+        onChange={(items) => set("research_questions", items)}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

@@ -86,6 +86,28 @@ describe("Protocol page", () => {
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
+  it("lists research questions with the first as main and promotes another", async () => {
+    mocks.fetchProtocolMock.mockResolvedValue({
+      research_questions: ["Main question", "Second question"],
+      period_from: null,
+      period_to: null,
+      languages: [],
+      extraction_notes: null,
+      inclusion_criteria: [],
+      exclusion_criteria: [],
+    });
+    mocks.fetchDatabasesMock.mockResolvedValue([]);
+    renderPage();
+
+    openTab("Scope");
+    expect(await screen.findByLabelText("Research questions 1")).toHaveValue("Main question");
+    expect(screen.getByText("Main")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Make Research questions 2 the main one" }));
+    expect(screen.getByLabelText("Research questions 1")).toHaveValue("Second question");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+
   it("blocks saving when the period start is after the end", async () => {
     mocks.fetchProtocolMock.mockResolvedValue(null);
     mocks.fetchDatabasesMock.mockResolvedValue([]);
