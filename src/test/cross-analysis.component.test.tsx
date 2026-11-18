@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -19,7 +20,7 @@ describe("CrossAnalysis component", () => {
 
     render(
       <MemoryRouter>
-        <CrossAnalysis articles={articles as any} />
+        <CrossAnalysis articles={articles as unknown as ComponentProps<typeof CrossAnalysis>["articles"]} />
       </MemoryRouter>,
     );
 
