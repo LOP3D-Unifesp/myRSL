@@ -100,6 +100,7 @@ function shouldRetryStatus(status: number): boolean {
   return status === 429 || status === 408 || (status >= 500 && status <= 599);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Crossref payload is untyped JSON
 async function fetchCrossrefJsonWithRetry(url: string): Promise<any | null> {
   for (let attempt = 1; attempt <= CROSSREF_MAX_ATTEMPTS; attempt += 1) {
     const controller = new AbortController();
