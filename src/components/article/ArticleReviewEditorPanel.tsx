@@ -144,7 +144,7 @@ const ArticleReviewEditorPanel = ({ article, onSaved, onDirtyChange, onQaScorePr
       } else if (Array.isArray(form[k])) {
         payload[k] = form[k] as never;
       } else {
-        payload[k] = String(form[k]).trim() || null;
+        payload[k] = (String(form[k]).trim() || null) as never;
       }
     }
     if (section === "general" && dirtyFields.has("author") && !dirtyFields.has("first_author")) payload.first_author = form.author.trim() ? deriveFirstAuthor(form.author) : null;

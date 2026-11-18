@@ -330,7 +330,7 @@ const Analytics = () => {
                           <WorldMap
                             title="Studies by Country"
                             size="xxl"
-                            data={geographyMapData.mapped}
+                            data={geographyMapData.mapped as React.ComponentProps<typeof WorldMap>["data"]}
                             color="hsl(var(--chart-5))"
                             backgroundColor="hsl(var(--muted))"
                             tooltipBgColor="hsl(var(--popover))"
