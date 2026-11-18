@@ -158,6 +158,7 @@ type SyncInvokePayload = {
   conflicts_count?: number;
   conflicts?: MetadataSyncConflict[];
   error?: string;
+  message?: string;
   code?: string;
 };
 
@@ -330,7 +331,7 @@ export async function fetchArticlesPage(params: FetchArticlesPageParams) {
 
   const term = search.trim();
   if (term) {
-    const escaped = term.replaceAll("%", "\\%");
+    const escaped = term.replace(/%/g, "\\%");
     query = query.or(
       `author.ilike.%${escaped}%,first_author.ilike.%${escaped}%,title.ilike.%${escaped}%,study_id.ilike.%${escaped}%,source_database.ilike.%${escaped}%,country.ilike.%${escaped}%,prosthesis_name.ilike.%${escaped}%`,
     );
