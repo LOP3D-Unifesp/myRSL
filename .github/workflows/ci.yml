@@ -15,6 +15,11 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # Tests and the build only need these to exist (tests mock Supabase), so placeholders
+      # are enough and keep PRs from forks working.
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://example.supabase.co' }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-key' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,8 +43,4 @@ jobs:
         run: npm test
 
       - name: Build
-        env:
-          # The build does not call Supabase, so placeholders are enough and keep fork PRs working.
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://example.supabase.co' }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-key' }}
         run: npm run build
