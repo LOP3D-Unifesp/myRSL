@@ -1,24 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchArticle, updateArticle, type ArticleInsert } from "@/lib/articles";
 import { sanitizeExtractedArticle } from "@/lib/article-schemas";
 import { supabase } from "@/integrations/supabase/client";
 import { articleKeys } from "@/lib/article-query-keys";
 import { formatCompactAuthors } from "@/lib/article-authors";
-import { QA_STATUS_LABELS, qaStatusOf } from "@/lib/qa-status";
 import { useMyReviewerRole, useReviewMemberNames } from "@/hooks/useReviewMemberNames";
 import { useQaQuestions } from "@/hooks/useProtocolData";
 import { QA_QUESTIONS, calculateQAScore, type QAKey } from "@/lib/qa-questions";
 import { countCompletedVerifications, isFullyVerified, verificationLabelFor, type VerificationKey } from "@/lib/article-verification";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, Clock3, ExternalLink, GripVertical, X } from "lucide-react";
-import VerificationToggles from "@/components/article/VerificationToggles";
+import { ArrowLeft, GripVertical, X } from "lucide-react";
 import PageState from "@/components/layout/PageState";
 import { getPdfAccessUrl } from "@/lib/pdf-storage";
 import { toast } from "sonner";
@@ -27,8 +23,14 @@ import { useSplitPaneDrag } from "@/hooks/useSplitPaneDrag";
 import ArticleReviewEditorPanel from "@/components/article/ArticleReviewEditorPanel";
 import { ArticleDetailHeader } from "@/components/article/ArticleDetailHeader";
 import { ArticleDetailToolbar } from "@/components/article/ArticleDetailToolbar";
+import { ArticleSummaryStrip } from "@/components/article/ArticleSummaryStrip";
+import { ArticleOverviewTab } from "@/components/article/ArticleOverviewTab";
+import { ArticleQaTab } from "@/components/article/ArticleQaTab";
+import { ArticleTechnicalTab } from "@/components/article/ArticleTechnicalTab";
 import { PdfViewerDialog } from "@/components/article/PdfViewerDialog";
 import { useAuthUserId } from "@/contexts/auth-user-id";
+
+type DetailsTab = "overview" | "qa" | "technical";
 
 const ArticleDetail = () => {
   const userId = useAuthUserId();
@@ -44,8 +46,7 @@ const ArticleDetail = () => {
   const [pdfAccessUrl, setPdfAccessUrl] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [openSections, setOpenSections] = useState<string[]>([]);
-  const [detailsTab, setDetailsTab] = useState<"overview" | "qa">("overview");
+  const [detailsTab, setDetailsTab] = useState<DetailsTab>("overview");
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -164,6 +165,12 @@ const ArticleDetail = () => {
     navigate(-1);
   };
 
+  const openEditor = () => {
+    if (editorOpen) return;
+    setLeftPanePercent(58);
+    setEditorOpen(true);
+  };
+
   const requestCloseEditor = () => {
     if (!editorDirty) {
       setEditorOpen(false);
@@ -227,8 +234,6 @@ const ArticleDetail = () => {
     ? { gridTemplateColumns: `${leftPanePercent}fr 16px ${100 - leftPanePercent}fr` }
     : undefined;
   const articleTitle = article.title || article.first_author || article.author || "Untitled";
-  const primaryQuestion = article.primary_research_question?.trim() || null;
-  const researchQuestions = article.research_questions ?? [];
 
   const editorPanelProps = {
     article,
@@ -249,155 +254,62 @@ const ArticleDetail = () => {
 
       <div ref={splitContainerRef} className={mainGridClass} style={splitColumnsStyle}>
         <div className="space-y-4">
-          <section className="rounded-xl border border-border/70 bg-card p-5 shadow-sm md:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <ArticleDetailHeader
-                article={article}
-                fullyVerified={fullyVerified}
-                articleTitle={articleTitle}
-                citationLabel={citationLabel}
-                primaryQuestion={primaryQuestion}
-                researchQuestions={researchQuestions}
-              />
-            </div>
+          <ArticleDetailHeader
+            article={article}
+            fullyVerified={fullyVerified}
+            articleTitle={articleTitle}
+            citationLabel={citationLabel}
+          />
 
-            <ArticleDetailToolbar
-              editorOpen={editorOpen}
-              pdfAccessUrl={pdfAccessUrl}
-              hasPdfUrl={!!article.pdf_url}
-              articleId={article.id}
-              extracting={extracting}
-              uploadingPdf={uploadingPdf}
-              onToggleEditor={() => {
-                if (editorOpen) requestCloseEditor();
-                else {
-                  setLeftPanePercent(58);
-                  setEditorOpen(true);
-                }
-              }}
-              onViewPdf={() => setPdfModalOpen(true)}
-              onUploadPdf={handleUploadPdf}
-              onExtractFromPdf={handleExtractFromPdf}
-            />
+          <ArticleDetailToolbar
+            editorOpen={editorOpen}
+            pdfAccessUrl={pdfAccessUrl}
+            hasPdfUrl={!!article.pdf_url}
+            articleId={article.id}
+            extracting={extracting}
+            uploadingPdf={uploadingPdf}
+            onToggleEditor={() => {
+              if (editorOpen) requestCloseEditor();
+              else openEditor();
+            }}
+            onViewPdf={() => setPdfModalOpen(true)}
+            onUploadPdf={handleUploadPdf}
+            onExtractFromPdf={handleExtractFromPdf}
+          />
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-12">
-              <Card className="border-border/70 bg-background/70 lg:col-span-8">
-                <CardContent className="space-y-3 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-base font-medium">Review Verification</p>
-                    <Badge variant="outline">{verificationProgress}/4 complete</Badge>
-                  </div>
-                  <VerificationToggles values={articleVerification} onToggle={handleVerificationToggle} stamps={verificationStamps} names={memberNames} locked={lockedSteps} />
-                  {samePeerReviewer ? (
-                    <p className="text-xs text-warning-foreground" role="status">Peer 1 and Peer 2 were verified by the same person.</p>
-                  ) : null}
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/70 bg-background/70 lg:col-span-4">
-                <CardContent className="space-y-3 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-muted-foreground">Review Session</p>
-                    <Badge variant="outline" className={reviewSessionBadgeTone}>{reviewSessionState}</Badge>
-                  </div>
-                  <div className="rounded-md border border-border/70 bg-card px-3 py-2">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Final QA score</p>
-                    <p className={`text-2xl font-semibold ${qaTone}`}>{qaScore} / 10</p>
-                    <Badge variant="outline" className="mt-1 text-[11px]" data-testid="qa-consensus-status">{QA_STATUS_LABELS[qaStatusOf(article.qa_consensus_status)]}</Badge>
-                    {decidedQaItems < QA_QUESTIONS.length ? (
-                      <p className="text-xs text-muted-foreground">{decidedQaItems} of {QA_QUESTIONS.length} items decided</p>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Verification progress</span>
-                    <span className="font-medium text-foreground">{verificationProgress}/4</span>
-                  </div>
-                  {savedAgo ? (
-                    <div className={`inline-flex items-center gap-1 text-xs ${reviewSessionTone}`}>
-                      <Clock3 className="h-3 w-3" />
-                      Saved {savedAgo}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-          </section>
+          <ArticleSummaryStrip
+            qaScore={qaScore}
+            qaTone={qaTone}
+            decidedQaItems={decidedQaItems}
+            totalQaItems={QA_QUESTIONS.length}
+            consensusStatus={article.qa_consensus_status}
+            verificationProgress={verificationProgress}
+            verification={articleVerification}
+            stamps={verificationStamps}
+            names={memberNames}
+            locked={lockedSteps}
+            samePeerReviewer={samePeerReviewer}
+            onToggleVerification={handleVerificationToggle}
+            sessionState={reviewSessionState}
+            sessionBadgeTone={reviewSessionBadgeTone}
+            savedAgo={savedAgo}
+          />
 
           <section className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-            <Tabs value={detailsTab} onValueChange={(value) => setDetailsTab(value as "overview" | "qa")} className="space-y-3">
-              <TabsList className="grid h-auto w-full grid-cols-2 bg-muted/70 p-1">
+            <Tabs value={detailsTab} onValueChange={(value) => setDetailsTab(value as DetailsTab)} className="space-y-4">
+              <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/70 p-1">
                 <TabsTrigger value="overview" className="py-2">Overview</TabsTrigger>
                 <TabsTrigger value="qa" className="py-2">QA</TabsTrigger>
+                <TabsTrigger value="technical" className="py-2">Technical &amp; Outcomes</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="overview" className="space-y-3">
-                <DetailRow label="Source Database" value={article.source_database} />
-                <DetailRow label="DOI" value={article.doi} link={article.doi ? `https://doi.org/${article.doi}` : undefined} />
-                <DetailRow label="Authors" value={article.author} />
-                <DetailRow label="First Author" value={article.first_author} />
-                <DetailRow label="Last Author" value={article.last_author} />
-                <DetailRow label="Universities" value={article.universities} />
-                <DetailRow label="Publication Type" value={article.publication_type} />
-                <DetailRow label="Study Design" value={article.study_design} />
-                <DetailRow label="Publication Place" value={article.publication_place} />
-                <ExpandableRow label="Abstract" value={article.abstract} />
+              <TabsContent value="overview"><ArticleOverviewTab article={article} /></TabsContent>
+              <TabsContent value="qa">
+                <ArticleQaTab articleId={article.id} questions={qaQuestions} finalAnswers={qaAnswers} onOpenReview={openEditor} />
               </TabsContent>
-
-              <TabsContent value="qa" className="space-y-2">
-                {qaQuestions.map((question) => (
-                  <div key={question.key} className="rounded-md border border-border/60 bg-background/60 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">{question.label}</span>
-                      <Badge variant="outline">{formatQaAnswer(qaAnswers[question.key])}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{question.description}</p>
-                  </div>
-                ))}
-              </TabsContent>
+              <TabsContent value="technical"><ArticleTechnicalTab article={article} /></TabsContent>
             </Tabs>
           </section>
-
-          <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="rounded-xl border border-border/70 bg-card px-4 shadow-sm">
-            <AccordionItem value="technical">
-              <AccordionTrigger className="text-base font-semibold">Technical</AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-3">
-                  <DetailRow label="Prosthesis" value={article.prosthesis_name} />
-                  <DetailRow label="Level" value={article.prosthesis_level} />
-                  <DetailRow label="DOF" value={article.dof} />
-                  <TagRow label="Control Strategy" values={article.control_strategy} />
-                  <TagRow label="Sensors" values={article.sensors} />
-                  <TagRow label="Feedback" values={article.feedback_modalities} />
-                  <DetailRow label="Manufacturing" value={article.manufacturing_method} />
-                  <DetailRow label="Growth Accommodation" value={article.growth_accommodation} />
-                  <ExpandableRow label="Technical Innovation" value={article.technical_innovation} />
-                  <ExpandableRow label="Challenges & Solutions" value={article.technical_challenges} />
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="outcomes">
-              <AccordionTrigger className="text-base font-semibold">Outcomes</AccordionTrigger>
-              <AccordionContent>
-                <div className="space-y-3">
-                  <DetailRow label="Pediatric Participants" value={article.has_pediatric_participants} />
-                  <DetailRow label="Sample Size" value={article.sample_size?.toString()} />
-                  <DetailRow label="Age Range" value={article.age_range} />
-                  <TagRow label="Amputation Cause" values={article.amputation_cause} />
-                  <TagRow label="Amputation Level" values={article.amputation_level} />
-                  <TagRow label="Setting" values={article.setting || []} />
-                  <TagRow label="Functional Tests" values={article.functional_tests} />
-                  <DetailRow label="Inferential Tests" value={article.statistical_tests_performed} />
-                  <ExpandableRow label="Statistical Tests Specified" value={article.statistical_tests_specified} />
-                  <ExpandableRow label="Quantitative Results" value={article.quantitative_results} />
-                  <ExpandableRow label="Usage Outcomes" value={article.usage_outcomes} />
-                  <ExpandableRow label="Main Gaps" value={article.gaps} />
-                  <DetailRow label="Primary Research Question" value={article.primary_research_question} />
-                  <TagRow label="All Research Questions" values={article.research_questions} />
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
         </div>
 
         {desktopPanelOpen ? (
@@ -492,63 +404,6 @@ const ArticleDetail = () => {
   );
 };
 
-function DetailRow({ label, value, link }: { label: string; value?: string | null; link?: string }) {
-  if (!value) return null;
-  return (
-    <div className="grid gap-1 text-sm md:grid-cols-[240px_minmax(0,1fr)] md:gap-3">
-      <span className="pt-0.5 font-medium text-muted-foreground">{label}</span>
-      {link ? (
-        <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 break-all text-primary underline hover:text-primary/80">
-          {value}
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : (
-        <span className="whitespace-pre-wrap text-foreground">{value}</span>
-      )}
-    </div>
-  );
-}
-
-function ExpandableRow({ label, value }: { label: string; value?: string | null }) {
-  const [expanded, setExpanded] = useState(false);
-  if (!value) return null;
-  const shortValue = value.length > 280 ? `${value.slice(0, 280)}...` : value;
-  const shouldCollapse = value.length > 280;
-  return (
-    <div className="grid gap-1 text-sm md:grid-cols-[240px_minmax(0,1fr)] md:gap-3">
-      <span className="pt-0.5 font-medium text-muted-foreground">{label}</span>
-      <div>
-        <p className="whitespace-pre-wrap text-foreground">{expanded || !shouldCollapse ? value : shortValue}</p>
-        {shouldCollapse ? (
-          <Button variant="link" size="sm" className="h-auto px-0 text-sm" onClick={() => setExpanded((prev) => !prev)}>
-            {expanded ? "Show less" : "Show more"}
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function TagRow({ label, values }: { label: string; values?: string[] | null }) {
-  if (!values || values.length === 0) return null;
-  return (
-    <div className="grid gap-1 text-sm md:grid-cols-[240px_minmax(0,1fr)] md:gap-3">
-      <span className="pt-0.5 font-medium text-muted-foreground">{label}</span>
-      <div className="flex flex-wrap gap-1">
-        {values.map((item) => (
-          <Badge key={`${label}-${item}`} variant="secondary" className="text-[11px]">{item}</Badge>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function formatQaAnswer(answer: string | null | undefined) {
-  if (answer === "Yes") return "Yes (1)";
-  if (answer === "Partial") return "Partial (0.5)";
-  if (answer === "No") return "No (0)";
-  return "Not set";
-}
 
 function formatSavedAgo(lastSavedAt: number | null, now: number) {
   if (!lastSavedAt) return null;

@@ -17,7 +17,7 @@ type Props = {
 
 export function ArticleDetailToolbar({ editorOpen, pdfAccessUrl, hasPdfUrl, articleId, extracting, uploadingPdf, onToggleEditor, onViewPdf, onUploadPdf, onExtractFromPdf }: Props) {
   return (
-    <div className="sticky top-2 z-20 mt-5 -mx-1 rounded-lg border border-border/60 bg-background/90 px-2 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div className="sticky top-2 z-20 rounded-lg border border-border/60 bg-background/90 px-2 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant={editorOpen ? "outline" : "default"}
